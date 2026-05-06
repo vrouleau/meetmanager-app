@@ -17,9 +17,6 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql://meetmgr:meetmgr@db:5432/meetmgr
-      TEMPLATE_MDB: /app/template.mdb
-    volumes:
-      - /mnt/c/Users/eoivnru/Downloads/input-mdb/meet.mdb:/app/template.mdb:ro
     depends_on:
       db:
         condition: service_healthy

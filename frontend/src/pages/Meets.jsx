@@ -21,16 +21,21 @@ export default function Meets() {
     fd.append('date_start', form.date_start)
     fd.append('age_date', form.age_date)
     fd.append('mdb', mdbFile)
-    const res = await fetch('/api/meets', { method: 'POST', body: fd })
-    const data = await res.json()
-    setCreating(false)
-    if (res.ok) {
-      alert(`Compétition créée: ${data.events_created} épreuves importées`)
-      setForm({ name: '', city: '', date_start: '', age_date: '' })
-      setMdbFile(null)
-      load()
-    } else {
-      alert(data.detail || 'Erreur')
+    try {
+      const res = await fetch('/api/meets', { method: 'POST', body: fd })
+      const data = await res.json()
+      setCreating(false)
+      if (res.ok) {
+        alert(`Compétition créée: ${data.events_created} épreuves importées`)
+        setForm({ name: '', city: '', date_start: '', age_date: '' })
+        setMdbFile(null)
+        load()
+      } else {
+        alert('Erreur: ' + (data.detail || JSON.stringify(data)))
+      }
+    } catch (err) {
+      setCreating(false)
+      alert('Erreur réseau: ' + err.message)
     }
   }
 

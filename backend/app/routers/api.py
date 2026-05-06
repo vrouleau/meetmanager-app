@@ -76,35 +76,39 @@ async def create_meet(
     from ..template_reader import read_template_structure_from_bytes
     from datetime import date as date_type
 
-    meet = MeetModel(
-        name=name, city=city,
-        date_start=date_type.fromisoformat(date_start),
-        age_date=date_type.fromisoformat(age_date),
-        course=course,
-    )
-    db.add(meet); db.flush()
+    try:
+        meet = MeetModel(
+            name=name, city=city,
+            date_start=date_type.fromisoformat(date_start),
+            age_date=date_type.fromisoformat(age_date),
+            course=course,
+        )
+        db.add(meet); db.flush()
 
-    # Read event structure from uploaded MDB
-    mdb_bytes = await mdb.read()
-    tmpl = read_template_structure_from_bytes(mdb_bytes)
-    gender_map = {0: None, 1: "M", 2: "F", 3: None}
-    for ev in tmpl["events"]:
-        if ev["round"] not in (1, 2):
-            continue
-        db.add(EventModel(
-            meet_id=meet.id,
-            style_name=ev["style_name"] or f"UID {ev['style_uid']}",
-            style_uid=ev["style_uid"],
-            age_code=ev["age_code"],
-            gender=gender_map.get(ev["gender"]),
-            is_relay=ev["relay_count"] > 1,
-            relay_count=ev["relay_count"],
-            distance=ev["distance"],
-        ))
-    db.commit(); db.refresh(meet)
-    return {"id": meet.id, "name": meet.name, "events_created": len([
-        e for e in tmpl["events"] if e["round"] in (1, 2)
-    ])}
+        # Read event structure from uploaded MDB
+        mdb_bytes = await mdb.read()
+        tmpl = read_template_structure_from_bytes(mdb_bytes)
+        gender_map = {0: None, 1: "M", 2: "F", 3: None}
+        count = 0
+        for ev in tmpl["events"]:
+            if ev["round"] not in (1, 2):
+                continue
+            db.add(EventModel(
+                meet_id=meet.id,
+                style_name=ev["style_name"] or f"UID {ev['style_uid']}",
+                style_uid=ev["style_uid"],
+                age_code=ev["age_code"],
+                gender=gender_map.get(ev["gender"]),
+                is_relay=ev["relay_count"] > 1,
+                relay_count=ev["relay_count"],
+                distance=ev["distance"],
+            ))
+            count += 1
+        db.commit(); db.refresh(meet)
+        return {"id": meet.id, "name": meet.name, "events_created": count}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, detail=str(e))
 
 @router.get("/meets/{meet_id}", response_model=schemas.MeetOut)
 def get_meet(meet_id: int, db: Session = Depends(get_db)):

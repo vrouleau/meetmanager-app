@@ -96,6 +96,23 @@ export default function Admin() {
         </div>
 
         <div className="border p-4 rounded">
+          <h2 className="font-semibold mb-2">Change Admin PIN</h2>
+          <p className="text-sm text-gray-600 mb-2">Change your admin login PIN.</p>
+          <form onSubmit={async e => {
+            e.preventDefault()
+            const newPin = e.target.pin.value
+            if (newPin.length < 4) { setMsg('PIN must be at least 4 characters'); return }
+            await api.post('/admin/change-pin', { pin: newPin })
+            localStorage.setItem('pin', newPin)
+            setMsg('Admin PIN changed. Use new PIN next login.')
+            e.target.reset()
+          }} className="flex gap-2">
+            <input name="pin" type="text" placeholder="New PIN" className="border p-2 rounded w-32" required />
+            <button type="submit" className="bg-gray-700 text-white px-4 py-2 rounded">Change</button>
+          </form>
+        </div>
+
+        <div className="border p-4 rounded">
           <h2 className="font-semibold mb-2">Regenerate All Club PINs</h2>
           <p className="text-sm text-gray-600 mb-2">Generate new PINs for all clubs. Old PINs will stop working.</p>
           <button onClick={async () => {

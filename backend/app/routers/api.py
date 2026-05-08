@@ -20,7 +20,12 @@ from ..export import generate_lxf
 router = APIRouter(prefix="/api")
 
 MEET_STORAGE = Path(os.environ.get("MEET_STORAGE", "/app/data/meet.lxf"))
-ADMIN_PIN = os.environ.get("ADMIN_PIN", "000000")
+_DEFAULT_ADMIN_PIN = os.environ.get("ADMIN_PIN", "000000")
+
+
+def _get_admin_pin(db: Session) -> str:
+    cfg = db.query(AppConfig).get("admin_pin")
+    return cfg.value if cfg else _DEFAULT_ADMIN_PIN
 
 # Rate limiting: max 5 attempts per IP per 60 seconds
 _auth_attempts: dict[str, list[float]] = defaultdict(list)
@@ -40,7 +45,7 @@ def _check_rate_limit(ip: str):
 
 def get_club_from_pin(db: Session, pin: str) -> Club | None:
     """Validate PIN and return club (or None for admin)."""
-    if pin == ADMIN_PIN:
+    if pin == _get_admin_pin(db):
         return None  # admin — no club filter
     return db.query(Club).filter(Club.pin == pin).first()
 
@@ -50,7 +55,7 @@ def require_pin(request, db: Session):
     pin = request.headers.get("X-Club-Pin", "")
     if not pin:
         raise HTTPException(401, "PIN required")
-    if pin == ADMIN_PIN:
+    if pin == _get_admin_pin(db):
         return None  # admin
     club = db.query(Club).filter(Club.pin == pin).first()
     if not club:
@@ -64,7 +69,8 @@ def auth(data: dict, request: Request, db: Session = Depends(get_db)):
     ip = request.client.host if request.client else "?"
     _check_rate_limit(ip)
     pin = data.get("pin", "")
-    if pin == ADMIN_PIN:
+    admin_pin = _get_admin_pin(db)
+    if pin == admin_pin:
         print(f"[LOGIN] admin from {ip}")
         return {"role": "admin", "club_id": None, "club_name": "Admin"}
     club = db.query(Club).filter(Club.pin == pin).first()
@@ -419,6 +425,21 @@ def regenerate_pins(db: Session = Depends(get_db)):
         club.pin = f"{random.randint(100000, 999999)}"
     db.commit()
     return {"regenerated": len(clubs)}
+
+
+@router.post("/admin/change-pin")
+def change_admin_pin(data: dict, db: Session = Depends(get_db)):
+    """Change the admin PIN."""
+    new_pin = data.get("pin", "")
+    if len(new_pin) < 4:
+        raise HTTPException(400, "PIN must be at least 4 characters")
+    cfg = db.query(AppConfig).get("admin_pin")
+    if cfg:
+        cfg.value = new_pin
+    else:
+        db.add(AppConfig(key="admin_pin", value=new_pin))
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/export")

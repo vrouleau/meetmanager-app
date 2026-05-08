@@ -71,7 +71,7 @@ export default function Admin() {
         <div className="mb-4 p-3 bg-blue-50 rounded text-sm">
           <strong>Meet:</strong>{' '}
           {meetInfo.filename
-            ? <>{meetInfo.filename} (uploaded {meetInfo.uploaded_at?.slice(0, 16)}) — {meetInfo.events} events</>
+            ? <>{meetInfo.filename} (uploaded {new Date(meetInfo.uploaded_at + 'Z').toLocaleString()}) — {meetInfo.events} events</>
             : <span className="text-red-600">No meet uploaded yet</span>}
         </div>
       )}

@@ -374,6 +374,17 @@ def flush_registrations(db: Session = Depends(get_db)):
     return {"deleted": count}
 
 
+@router.post("/clubs/regenerate-pins")
+def regenerate_pins(db: Session = Depends(get_db)):
+    """Regenerate all club PINs."""
+    import random
+    clubs = db.query(Club).all()
+    for club in clubs:
+        club.pin = f"{random.randint(100000, 999999)}"
+    db.commit()
+    return {"regenerated": len(clubs)}
+
+
 @router.get("/export")
 def export_lenex(db: Session = Depends(get_db)):
     """Generate and download Lenex .lxf."""

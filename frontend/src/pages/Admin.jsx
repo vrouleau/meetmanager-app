@@ -96,6 +96,19 @@ export default function Admin() {
         </div>
 
         <div className="border p-4 rounded">
+          <h2 className="font-semibold mb-2">Regenerate All Club PINs</h2>
+          <p className="text-sm text-gray-600 mb-2">Generate new PINs for all clubs. Old PINs will stop working.</p>
+          <button onClick={async () => {
+            if (!confirm('Regenerate ALL club PINs? Coaches will need new PINs.')) return
+            const r = await api.post('/clubs/regenerate-pins', {})
+            setMsg(`Regenerated PINs for ${r.data.regenerated} clubs`)
+            loadStatus()
+          }} className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">
+            Regenerate PINs
+          </button>
+        </div>
+
+        <div className="border p-4 rounded">
           <h2 className="font-semibold mb-2">Flush All Registrations</h2>
           <p className="text-sm text-gray-600 mb-2">Remove all event registrations (keeps athletes and best times).</p>
           <button onClick={async () => {

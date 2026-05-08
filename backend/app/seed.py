@@ -38,8 +38,8 @@ def parse_lxf(file_bytes: bytes) -> list[dict]:
                         except ValueError:
                             pass
                     club_info["athletes"].append({
-                        "first_name": ath_el.get("firstname", ""),
-                        "last_name": ath_el.get("lastname", ""),
+                        "first_name": ath_el.get("firstname", "").strip().rstrip(","),
+                        "last_name": ath_el.get("lastname", "").strip().rstrip(","),
                         "gender": ath_el.get("gender", "M"),
                         "birthdate": birthdate,
                         "license": ath_el.get("license", ""),

@@ -3,6 +3,10 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install
 COPY . .
+ARG BUILD_TIMESTAMP=""
+RUN if [ -n "${BUILD_TIMESTAMP}" ]; then echo "${BUILD_TIMESTAMP}" > /tmp/bt; \
+    else TZ=America/Toronto date '+%Y-%m-%d %H:%M ET' > /tmp/bt; fi && \
+    echo "export const BUILD_TIMESTAMP = '$(cat /tmp/bt)';" > src/buildInfo.js
 RUN npm run build
 
 FROM nginx:alpine

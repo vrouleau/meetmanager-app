@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useLang } from '../i18n'
 import api from '../api'
+import { BUILD_TIMESTAMP } from '../buildInfo'
 
 export default function Admin() {
   const [status, setStatus] = useState(null)
@@ -150,6 +151,11 @@ export default function Admin() {
       </div>
 
       {msg && <p className="mt-4 text-green-700">{msg}</p>}
+
+      <footer className="mt-8 pt-4 border-t text-xs text-gray-400 text-center">
+        Source : <a href="https://github.com/vrouleau/meetmanager-app" target="_blank" rel="noopener" className="underline">github.com/vrouleau/meetmanager-app</a>
+        {' '}— build : {BUILD_TIMESTAMP}
+      </footer>
     </div>
   )
 }

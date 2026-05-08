@@ -20,6 +20,29 @@ function parseTime(str) {
   return undefined
 }
 
+function TimeInput({ defaultValue, onSave }) {
+  const [value, setValue] = useState(defaultValue || '')
+  const [error, setError] = useState(false)
+
+  function validate(str) {
+    if (!str || str.trim().toLowerCase() === 'nt') return true
+    return /^\d+:\d{2}\.\d{2}$/.test(str.trim()) || /^\d+\.\d{2}$/.test(str.trim())
+  }
+
+  return (
+    <input className={`border p-1 rounded w-24 ${error ? 'border-red-500 bg-red-50' : ''}`}
+      placeholder="m:ss.cc"
+      value={value}
+      onChange={e => { setValue(e.target.value); setError(false) }}
+      onBlur={e => {
+        const v = e.target.value
+        if (!validate(v)) { setError(true); return }
+        setError(false)
+        onSave(v)
+      }} />
+  )
+}
+
 export default function Register() {
   const { id } = useParams()
   const [data, setData] = useState(null)
@@ -145,11 +168,10 @@ export default function Register() {
                 <td className="border p-2 text-gray-500">{msToTime(style.best_time_ms)}</td>
                 <td className="border p-2">
                   {reg && (
-                    <input className="border p-1 rounded w-24" placeholder="NT"
-                      defaultValue={msToTime(reg.entry_time_ms)}
+                    <TimeInput defaultValue={msToTime(reg.entry_time_ms)}
                       key={`${reg.registration_id}-${reg.entry_time_ms}`}
-                      onBlur={async e => {
-                        const ms = parseTime(e.target.value)
+                      onSave={async v => {
+                        const ms = parseTime(v)
                         if (ms === undefined) return
                         await api.post('/registrations', {
                           athlete_id: parseInt(id), event_id: reg.event_id,
@@ -209,14 +231,14 @@ export default function Register() {
                     </td>
                     <td className="border p-2">
                       {reg && (
-                        <input className="border p-1 rounded w-24" placeholder="NT"
-                          defaultValue={msToTime(reg.entry_time_ms)}
+                        <TimeInput defaultValue={msToTime(reg.entry_time_ms)}
                           key={`r-${reg.registration_id}`}
-                          onBlur={async e => {
-                            const ms = parseTime(e.target.value)
+                          onSave={async v => {
+                            const ms = parseTime(v)
                             if (ms === undefined) return
                             await api.post('/registrations', {
-                              athlete_id: parseInt(id), event_id: reg.event_id, entry_time_ms: ms
+                              athlete_id: parseInt(id), event_id: reg.event_id,
+                              age_code: reg.age_code, entry_time_ms: ms
                             })
                             load()
                           }} />

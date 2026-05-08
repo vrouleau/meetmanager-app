@@ -22,6 +22,8 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    volumes:
+      - appdata:/app/data
 
   frontend:
     build: ./frontend
@@ -32,3 +34,4 @@ services:
 
 volumes:
   pgdata:
+  appdata:

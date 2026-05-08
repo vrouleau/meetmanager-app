@@ -1,17 +1,63 @@
 """API endpoints."""
 from __future__ import annotations
 
+import os
+from datetime import datetime
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
-from ..models import Club, Athlete, Event, Registration, BestTime
+from ..models import Club, Athlete, Event, Registration, BestTime, AppConfig, Gender
 from ..seed import seed_from_lxf
 from ..best_times import load_best_times
 from ..export import generate_lxf
 
 router = APIRouter(prefix="/api")
 
+MEET_STORAGE = Path(os.environ.get("MEET_STORAGE", "/app/data/meet.lxf"))
+
+
+@router.post("/upload/meet")
+async def upload_meet(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Upload meet .lxf — sets event structure."""
+    content = await file.read()
+    from ..meet_parser import parse_meet_lxf
+    try:
+        meet = parse_meet_lxf(content)
+    except Exception as e:
+        raise HTTPException(400, f"Invalid meet .lxf: {e}")
+
+    MEET_STORAGE.parent.mkdir(parents=True, exist_ok=True)
+    MEET_STORAGE.write_bytes(content)
+
+    # Reload events
+    db.query(Event).delete()
+    from ..events import _load_from_parsed
+    count = _load_from_parsed(db, meet)
+
+    # Track metadata
+    for key, val in [("meet_filename", file.filename or "meet.lxf"),
+                     ("meet_uploaded_at", datetime.utcnow().isoformat())]:
+        cfg = db.query(AppConfig).get(key)
+        if cfg:
+            cfg.value = val
+        else:
+            db.add(AppConfig(key=key, value=val))
+    db.commit()
+    return {"events_loaded": count, "filename": file.filename}
+
+
+@router.get("/meet-info")
+def meet_info(db: Session = Depends(get_db)):
+    filename = db.query(AppConfig).get("meet_filename")
+    uploaded = db.query(AppConfig).get("meet_uploaded_at")
+    return {
+        "filename": filename.value if filename else None,
+        "uploaded_at": uploaded.value if uploaded else None,
+        "events": db.query(Event).count(),
+    }
 
 @router.get("/clubs")
 def list_clubs(db: Session = Depends(get_db)):

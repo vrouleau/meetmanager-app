@@ -1,13 +1,33 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import api from '../api'
 
 export default function Admin() {
   const [status, setStatus] = useState(null)
+  const [meetInfo, setMeetInfo] = useState(null)
   const [msg, setMsg] = useState('')
+
+  useEffect(() => { loadStatus(); loadMeetInfo() }, [])
 
   async function loadStatus() {
     const r = await api.get('/status')
     setStatus(r.data)
+  }
+
+  async function loadMeetInfo() {
+    const r = await api.get('/meet-info')
+    setMeetInfo(r.data)
+  }
+
+  async function uploadMeet(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    const fd = new FormData()
+    fd.append('file', file)
+    setMsg('Uploading meet structure...')
+    const r = await api.post('/upload/meet', fd)
+    setMsg(`Done: ${r.data.events_loaded} events loaded from ${r.data.filename}`)
+    loadStatus()
+    loadMeetInfo()
   }
 
   async function uploadEntries(e) {
@@ -36,8 +56,6 @@ export default function Admin() {
     window.open('/api/export', '_blank')
   }
 
-  useState(() => { loadStatus() }, [])
-
   return (
     <div className="p-4 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">Admin / Export</h1>
@@ -49,7 +67,22 @@ export default function Admin() {
         </div>
       )}
 
+      {meetInfo && (
+        <div className="mb-4 p-3 bg-blue-50 rounded text-sm">
+          <strong>Meet:</strong>{' '}
+          {meetInfo.filename
+            ? <>{meetInfo.filename} (uploaded {meetInfo.uploaded_at?.slice(0, 16)}) — {meetInfo.events} events</>
+            : <span className="text-red-600">No meet uploaded yet</span>}
+        </div>
+      )}
+
       <div className="space-y-4">
+        <div className="border p-4 rounded">
+          <h2 className="font-semibold mb-2">Upload Meet Structure (.lxf)</h2>
+          <p className="text-sm text-gray-600 mb-2">Import event structure from a SPLASH meet export. Required before registering athletes.</p>
+          <input type="file" accept=".lxf" onChange={uploadMeet} />
+        </div>
+
         <div className="border p-4 rounded">
           <h2 className="font-semibold mb-2">Upload Entries (.lxf)</h2>
           <p className="text-sm text-gray-600 mb-2">Import clubs and athletes from a SPLASH entries export.</p>

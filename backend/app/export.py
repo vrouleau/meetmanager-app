@@ -33,7 +33,7 @@ def generate_lxf(db: Session) -> bytes:
 
     # Load meet structure for SPLASH event IDs
     from .meet_parser import parse_meet_lxf
-    meet_path = Path(os.environ.get("MEET_LXF", "/app/meet.lxf"))
+    meet_path = Path(os.environ.get("MEET_STORAGE", "/app/data/meet.lxf"))
     meet_struct = parse_meet_lxf(meet_path)
 
     # Map: our DB event -> SPLASH eventid

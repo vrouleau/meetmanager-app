@@ -25,8 +25,8 @@ app.include_router(router)
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
-    # Load events from meet .lxf on first boot
-    meet_path = Path(os.environ.get("MEET_LXF", "/app/meet.lxf"))
+    # Load events from stored meet .lxf if available and events table is empty
+    meet_path = Path(os.environ.get("MEET_STORAGE", "/app/data/meet.lxf"))
     if meet_path.exists():
         db = SessionLocal()
         try:

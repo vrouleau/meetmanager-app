@@ -5,17 +5,12 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 from .models import Event
-from .meet_parser import parse_meet_lxf
+from .meet_parser import parse_meet_lxf, ParsedMeet
 
 
-def load_events(db: Session, lxf_path: Path) -> int:
-    """Load events from meet .lxf if table is empty. Returns count."""
-    if db.query(Event).first():
-        return 0
-
-    meet = parse_meet_lxf(lxf_path)
+def _load_from_parsed(db: Session, meet: ParsedMeet) -> int:
+    """Insert events from a parsed meet. Returns count."""
     count = 0
-
     for ev in meet.all_events:
         event = Event(
             style_uid=ev.swimstyleid,
@@ -30,6 +25,13 @@ def load_events(db: Session, lxf_path: Path) -> int:
         )
         db.add(event)
         count += 1
-
     db.commit()
     return count
+
+
+def load_events(db: Session, lxf_path: Path) -> int:
+    """Load events from meet .lxf if table is empty. Returns count."""
+    if db.query(Event).first():
+        return 0
+    meet = parse_meet_lxf(lxf_path)
+    return _load_from_parsed(db, meet)

@@ -97,3 +97,9 @@ class BestTime(Base):
     __table_args__ = (
         UniqueConstraint("athlete_id", "style_uid", name="uq_best_time"),
     )
+
+
+class AppConfig(Base):
+    __tablename__ = "app_config"
+    key = Column(String(50), primary_key=True)
+    value = Column(String(500))

@@ -148,6 +148,7 @@ export default function Register() {
           <th className="border p-2 w-8">✓</th>
           <th className="border p-2 text-left">Event</th>
           <th className="border p-2 text-left">Category</th>
+          <th className="border p-2 text-left">Best Time</th>
           <th className="border p-2 text-left">Entry Time</th>
         </tr></thead>
         <tbody>
@@ -179,6 +180,7 @@ export default function Register() {
                     ))}
                   </select>
                 </td>
+                <td className="border p-2 text-gray-500">{msToTime(style.best_time_ms)}</td>
                 <td className="border p-2">
                   {reg && (
                     <TimeInput defaultValue={msToTime(reg.entry_time_ms || style.best_time_ms)}

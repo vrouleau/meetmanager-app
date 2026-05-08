@@ -25,13 +25,13 @@ app.include_router(router)
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
-    # Load events from template JSON on first boot
-    template_path = Path(os.environ.get("TEMPLATE_JSON", "/app/template_struct.json"))
-    if template_path.exists():
+    # Load events from meet .lxf on first boot
+    meet_path = Path(os.environ.get("MEET_LXF", "/app/meet.lxf"))
+    if meet_path.exists():
         db = SessionLocal()
         try:
-            count = load_events(db, template_path)
+            count = load_events(db, meet_path)
             if count:
-                print(f"Loaded {count} events from {template_path}")
+                print(f"Loaded {count} events from {meet_path}")
         finally:
             db.close()

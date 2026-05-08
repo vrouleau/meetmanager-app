@@ -31,24 +31,25 @@ def generate_lxf(db: Session) -> bytes:
     import json, os
     from pathlib import Path
 
-    # Load template for event structure
-    template_path = Path(os.environ.get("TEMPLATE_JSON", "/app/template_struct.json"))
-    with open(template_path) as f:
-        template = json.load(f)
+    # Load meet structure for SPLASH event IDs
+    from .meet_parser import parse_meet_lxf
+    meet_path = Path(os.environ.get("MEET_LXF", "/app/meet.lxf"))
+    meet_struct = parse_meet_lxf(meet_path)
 
-    # Build event_number -> eid mapping (need the SPLASH event IDs)
-    # Our DB Event.id is internal; we need the template's eid for Lenex
-    # Map: our DB event.id -> template eid
-    db_events = db.query(Event).all()
+    # Map: our DB event -> SPLASH eventid
     # Match by style_uid + gender + masters + round
+    db_events = db.query(Event).all()
     db_to_splash_eid: dict[int, int] = {}
     for db_ev in db_events:
-        for t_ev in template["events"]:
-            if (t_ev["uid"] == db_ev.style_uid and
-                t_ev["gender"] == db_ev.gender and
-                t_ev["masters"] == db_ev.masters and
-                t_ev["round"] == db_ev.round):
-                db_to_splash_eid[db_ev.id] = t_ev["eid"]
+        gender_str = {1: "M", 2: "F", 3: "X"}.get(db_ev.gender, "")
+        for m_ev in meet_struct.all_events:
+            if (m_ev.swimstyleid == db_ev.style_uid and
+                m_ev.gender == gender_str and
+                m_ev.is_masters == db_ev.masters and
+                ((db_ev.round == 2 and m_ev.is_prelim) or
+                 (db_ev.round == 1 and m_ev.round == "TIM") or
+                 (db_ev.round == 9 and m_ev.round == "FIN"))):
+                db_to_splash_eid[db_ev.id] = m_ev.eventid
                 break
 
     regs = db.query(Registration).options(
@@ -77,30 +78,24 @@ def generate_lxf(db: Session) -> bytes:
     })
     ET.SubElement(meet, "AGEDATE", value=date(2026, 12, 31).isoformat(), type="DATE")
 
-    # Sessions + Events from template (so SPLASH can match eventids)
+    # Sessions + Events from meet structure
     sessions_xml = ET.SubElement(meet, "SESSIONS")
-    from collections import defaultdict
-    ses_events = defaultdict(list)
-    for t_ev in template["events"]:
-        ses_events[t_ev.get("session", 1)].append(t_ev)
-    styles = template["styles"]
-    for ses_id, tevents in sorted(ses_events.items()):
+    for ses in meet_struct.sessions:
         ses_xml = ET.SubElement(sessions_xml, "SESSION", {
-            "number": str(ses_id), "date": "2026-12-31", "course": "LCM",
+            "number": str(ses.number), "date": "2026-12-31", "course": "LCM",
         })
         evts_xml = ET.SubElement(ses_xml, "EVENTS")
-        for t_ev in sorted(tevents, key=lambda e: e.get("enum", 0)):
-            style = styles.get(str(t_ev["uid"]), {})
+        for m_ev in ses.events:
             ev_xml = ET.SubElement(evts_xml, "EVENT", {
-                "eventid": str(t_ev["eid"]),
-                "number": str(t_ev.get("enum", 0)),
-                "gender": _gender_str(t_ev["gender"]),
-                "round": "TIM" if t_ev["round"] == 1 else "PRE",
+                "eventid": str(m_ev.eventid),
+                "number": str(m_ev.number),
+                "gender": m_ev.gender,
+                "round": m_ev.round,
             })
             ET.SubElement(ev_xml, "SWIMSTYLE", {
                 "stroke": "UNKNOWN",
-                "distance": str(style.get("distance", 0)),
-                "relaycount": str(style.get("relay_count", 1)),
+                "distance": str(m_ev.distance),
+                "relaycount": str(m_ev.relaycount),
             })
 
     clubs_xml = ET.SubElement(meet, "CLUBS")

@@ -1,37 +1,32 @@
-"""Load events from template_struct.json into the Event table."""
+"""Load events from meet .lxf into the Event table."""
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from sqlalchemy.orm import Session
 from .models import Event
+from .meet_parser import parse_meet_lxf
 
 
-def load_events(db: Session, json_path: Path) -> int:
-    """Load events from template JSON if table is empty. Returns count."""
+def load_events(db: Session, lxf_path: Path) -> int:
+    """Load events from meet .lxf if table is empty. Returns count."""
     if db.query(Event).first():
-        return 0  # already loaded
+        return 0
 
-    with open(json_path) as f:
-        data = json.load(f)
-
-    styles = data["styles"]  # {uid_str: {distance, relay_count, name}}
+    meet = parse_meet_lxf(lxf_path)
     count = 0
 
-    for ev in data["events"]:
-        uid = ev["uid"]
-        style = styles.get(str(uid), {})
+    for ev in meet.all_events:
         event = Event(
-            style_uid=uid,
-            style_name=style.get("name") or f"UID {uid}",
-            distance=style.get("distance"),
-            relay_count=style.get("relay_count", 1),
-            gender=ev["gender"],
-            event_number=ev["enum"],
-            round=ev["round"],
-            masters=ev["masters"],
-            session_id=ev["session"],
+            style_uid=ev.swimstyleid,
+            style_name=ev.style_name or f"UID {ev.swimstyleid}",
+            distance=ev.distance,
+            relay_count=ev.relaycount,
+            gender=ev.gender_int,
+            event_number=ev.number,
+            round=2 if ev.is_prelim else (1 if ev.round == "TIM" else 9),
+            masters=ev.is_masters,
+            session_id=None,
         )
         db.add(event)
         count += 1

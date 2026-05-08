@@ -57,7 +57,9 @@ def seed_from_lxf(db: Session, file_bytes: bytes) -> dict:
     for cd in clubs_data:
         club = db.query(Club).filter(Club.name == cd["name"]).first()
         if not club:
-            club = Club(name=cd["name"], code=cd["code"], nation=cd["nation"])
+            import random
+            pin = f"{random.randint(100000, 999999)}"
+            club = Club(name=cd["name"], code=cd["code"], nation=cd["nation"], pin=pin)
             db.add(club)
             db.flush()
             clubs_added += 1

@@ -25,6 +25,7 @@ class Club(Base):
     name = Column(String(100), unique=True, nullable=False)
     code = Column(String(20))
     nation = Column(String(3))
+    pin = Column(String(6))
     athletes = relationship("Athlete", back_populates="club")
 
 

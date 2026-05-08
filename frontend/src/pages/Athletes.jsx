@@ -2,19 +2,21 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../api'
 
-export default function Athletes() {
+export default function Athletes({ role, clubId }) {
   const [athletes, setAthletes] = useState([])
   const [clubs, setClubs] = useState([])
-  const [clubFilter, setClubFilter] = useState('')
+  const [clubFilter, setClubFilter] = useState(clubId || '')
   const [search, setSearch] = useState('')
   const [showAddAthlete, setShowAddAthlete] = useState(false)
   const [showAddClub, setShowAddClub] = useState(false)
   const [newClub, setNewClub] = useState('')
+  const isAdmin = role === 'admin'
 
   useEffect(() => {
     api.get('/clubs').then(r => {
       setClubs(r.data)
-      if (r.data.length > 0) setClubFilter(String(r.data[0].id))
+      if (clubId) setClubFilter(clubId)
+      else if (r.data.length > 0) setClubFilter(String(r.data[0].id))
     })
   }, [])
 
@@ -83,14 +85,18 @@ export default function Athletes() {
 
       {/* Club selector */}
       <div className="flex gap-2 mb-4 items-center">
-        <select value={clubFilter} onChange={e => setClubFilter(e.target.value)}
-                className="border p-2 rounded">
-          {clubs.map(c => <option key={c.id} value={c.id}>{c.name} ({c.athlete_count})</option>)}
-        </select>
-        <button onClick={() => deleteClub(parseInt(clubFilter), clubs.find(c=>c.id===parseInt(clubFilter))?.name)}
-                className="text-red-600 text-sm hover:underline">Delete club</button>
-        <button onClick={() => setShowAddClub(true)}
-                className="text-blue-600 text-sm hover:underline">+ New club</button>
+        {isAdmin ? (
+          <select value={clubFilter} onChange={e => setClubFilter(e.target.value)}
+                  className="border p-2 rounded">
+            {clubs.map(c => <option key={c.id} value={c.id}>{c.name} ({c.athlete_count}) PIN:{c.pin}</option>)}
+          </select>
+        ) : (
+          <span className="font-semibold">{clubs.find(c => String(c.id) === clubFilter)?.name}</span>
+        )}
+        {isAdmin && <button onClick={() => deleteClub(parseInt(clubFilter), clubs.find(c=>c.id===parseInt(clubFilter))?.name)}
+                className="text-red-600 text-sm hover:underline">Delete club</button>}
+        {isAdmin && <button onClick={() => setShowAddClub(true)}
+                className="text-blue-600 text-sm hover:underline">+ New club</button>}
         <div className="flex-1" />
         <input type="text" placeholder="Search..." value={search}
                onChange={e => setSearch(e.target.value)}

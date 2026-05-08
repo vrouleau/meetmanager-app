@@ -17,6 +17,38 @@ from ..export import generate_lxf
 router = APIRouter(prefix="/api")
 
 MEET_STORAGE = Path(os.environ.get("MEET_STORAGE", "/app/data/meet.lxf"))
+ADMIN_PIN = os.environ.get("ADMIN_PIN", "000000")
+
+
+def get_club_from_pin(db: Session, pin: str) -> Club | None:
+    """Validate PIN and return club (or None for admin)."""
+    if pin == ADMIN_PIN:
+        return None  # admin — no club filter
+    return db.query(Club).filter(Club.pin == pin).first()
+
+
+def require_pin(request, db: Session):
+    """Extract pin from header, validate. Returns (club_id or None for admin)."""
+    pin = request.headers.get("X-Club-Pin", "")
+    if not pin:
+        raise HTTPException(401, "PIN required")
+    if pin == ADMIN_PIN:
+        return None  # admin
+    club = db.query(Club).filter(Club.pin == pin).first()
+    if not club:
+        raise HTTPException(401, "Invalid PIN")
+    return club.id
+
+
+@router.get("/auth")
+def auth(pin: str, db: Session = Depends(get_db)):
+    """Validate PIN, return club info."""
+    if pin == ADMIN_PIN:
+        return {"role": "admin", "club_id": None, "club_name": "Admin"}
+    club = db.query(Club).filter(Club.pin == pin).first()
+    if not club:
+        raise HTTPException(401, "Invalid PIN")
+    return {"role": "coach", "club_id": club.id, "club_name": club.name}
 
 
 @router.post("/upload/meet")
@@ -63,15 +95,17 @@ def meet_info(db: Session = Depends(get_db)):
 def list_clubs(db: Session = Depends(get_db)):
     clubs = db.query(Club).order_by(Club.name).all()
     return [{"id": c.id, "name": c.name, "code": c.code,
-             "athlete_count": len(c.athletes)} for c in clubs]
+             "pin": c.pin, "athlete_count": len(c.athletes)} for c in clubs]
 
 
 @router.post("/clubs")
 def create_club(data: dict, db: Session = Depends(get_db)):
-    club = Club(name=data["name"], code=data.get("code", ""), nation=data.get("nation", "CAN"))
+    import random
+    pin = data.get("pin") or f"{random.randint(100000, 999999)}"
+    club = Club(name=data["name"], code=data.get("code", ""), nation=data.get("nation", "CAN"), pin=pin)
     db.add(club)
     db.commit()
-    return {"id": club.id}
+    return {"id": club.id, "pin": club.pin}
 
 
 @router.delete("/clubs/{club_id}")

@@ -61,7 +61,7 @@ export default function Register() {
 
   if (!data) return <div className="p-4">Loading...</div>
 
-  const { athlete, individual_events, relay_events, club_athletes } = data
+  const { athlete, individual_events, relay_events, club_athletes, suggested_age_code } = data
 
   return (
     <div className="p-4 max-w-5xl mx-auto">
@@ -122,19 +122,21 @@ export default function Register() {
                   <input type="checkbox" checked={!!reg} disabled={saving}
                     onChange={() => {
                       if (reg) unregister(reg.registration_id)
-                      else registerEvent(style.categories[0].event_id, style.best_time_ms, style.categories[0].age_code)
+                      else {
+                        const cat = style.categories.find(c => c.age_code === suggested_age_code) || style.categories[0]
+                        registerEvent(cat.event_id, style.best_time_ms, cat.age_code)
+                      }
                     }} />
                 </td>
                 <td className="border p-2">{style.style_name}</td>
                 <td className="border p-2">
                   <select className="border p-1 rounded text-xs"
-                    value={reg ? reg.age_code : ''}
+                    value={reg ? reg.age_code : suggested_age_code}
                     onChange={async e => {
                       const cat = style.categories.find(c => c.age_code === e.target.value)
                       if (reg) await unregister(reg.registration_id)
                       await registerEvent(cat.event_id, style.best_time_ms, cat.age_code)
                     }}>
-                    {!reg && <option value="">—</option>}
                     {style.categories.map(c => (
                       <option key={c.age_code} value={c.age_code}>{c.age_code}</option>
                     ))}
@@ -185,19 +187,21 @@ export default function Register() {
                       <input type="checkbox" checked={!!reg} disabled={saving}
                         onChange={() => {
                           if (reg) unregister(reg.registration_id)
-                          else registerEvent(style.categories[0].event_id, null, style.categories[0].age_code)
+                          else {
+                            const cat = style.categories.find(c => c.age_code === suggested_age_code) || style.categories[0]
+                            registerEvent(cat.event_id, null, cat.age_code)
+                          }
                         }} />
                     </td>
                     <td className="border p-2">{style.style_name} ({style.relay_count}x)</td>
                     <td className="border p-2">
                       <select className="border p-1 rounded text-xs"
-                        value={reg ? reg.age_code : ''}
+                        value={reg ? reg.age_code : suggested_age_code}
                         onChange={async e => {
                           const cat = style.categories.find(c => c.age_code === e.target.value)
                           if (reg) await unregister(reg.registration_id)
                           await registerEvent(cat.event_id, null, cat.age_code)
                         }}>
-                        {!reg && <option value="">—</option>}
                         {style.categories.map(c => (
                           <option key={c.age_code} value={c.age_code}>{c.age_code}</option>
                         ))}

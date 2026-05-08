@@ -180,6 +180,16 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
         Athlete.id != athlete_id,
     ).order_by(Athlete.last_name).all()
 
+    # Determine suggested age_code from athlete DOB
+    suggested_age_code = "Open"
+    if athlete.birthdate:
+        from datetime import date as d
+        age = d(2026, 12, 31).year - athlete.birthdate.year
+        if 15 <= age <= 18:
+            suggested_age_code = "15-18"
+        elif age >= 25:
+            suggested_age_code = "Masters"
+
     return {
         "athlete": {
             "id": athlete.id, "first_name": athlete.first_name,
@@ -188,6 +198,7 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
             "license": athlete.license or "",
             "club": athlete.club.name, "club_id": athlete.club_id,
         },
+        "suggested_age_code": suggested_age_code,
         "individual_events": individual_events,
         "relay_events": relay_events,
         "club_athletes": [{"id": a.id, "name": f"{a.last_name}, {a.first_name}"}

@@ -1,81 +1,66 @@
 import { useState, useEffect } from 'react'
-import { fetchJson } from '../api'
+import { Link } from 'react-router-dom'
+import api from '../api'
 
 export default function Athletes() {
   const [athletes, setAthletes] = useState([])
   const [clubs, setClubs] = useState([])
-  const [form, setForm] = useState({
-    first_name: '', last_name: '', gender: 'M', birthdate: '', nran: '', club_id: '', email: ''
-  })
+  const [clubFilter, setClubFilter] = useState('')
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
-    fetchJson('/athletes').then(setAthletes)
-    fetchJson('/clubs').then(setClubs)
+    api.get('/clubs').then(r => setClubs(r.data))
+    api.get('/athletes').then(r => setAthletes(r.data))
   }, [])
-  const load = () => fetchJson('/athletes').then(setAthletes)
 
-  const submit = async (e) => {
-    e.preventDefault()
-    await fetchJson('/athletes', {
-      method: 'POST',
-      body: JSON.stringify({ ...form, club_id: parseInt(form.club_id) })
-    })
-    setForm({ first_name: '', last_name: '', gender: 'M', birthdate: '', nran: '', club_id: '', email: '' })
-    load()
-  }
-
-  const remove = async (id) => {
-    await fetchJson(`/athletes/${id}`, { method: 'DELETE' })
-    load()
-  }
+  const filtered = athletes.filter(a => {
+    if (clubFilter && a.club_id !== parseInt(clubFilter)) return false
+    if (search) {
+      const s = search.toLowerCase()
+      return (a.first_name + ' ' + a.last_name).toLowerCase().includes(s)
+    }
+    return true
+  })
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">Athlètes</h1>
-      <form onSubmit={submit} className="flex flex-wrap gap-2 mb-4">
-        <input className="border p-2 rounded" placeholder="Prénom" required
-          value={form.first_name} onChange={e => setForm({...form, first_name: e.target.value})} />
-        <input className="border p-2 rounded" placeholder="Nom" required
-          value={form.last_name} onChange={e => setForm({...form, last_name: e.target.value})} />
-        <select className="border p-2 rounded" value={form.gender}
-          onChange={e => setForm({...form, gender: e.target.value})}>
-          <option value="M">M</option><option value="F">F</option>
+    <div className="p-4 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Athletes</h1>
+      <div className="flex gap-4 mb-4">
+        <select value={clubFilter} onChange={e => setClubFilter(e.target.value)}
+                className="border p-2 rounded">
+          <option value="">All clubs</option>
+          {clubs.map(c => <option key={c.id} value={c.id}>{c.name} ({c.athlete_count})</option>)}
         </select>
-        <input className="border p-2 rounded" type="date" required
-          value={form.birthdate} onChange={e => setForm({...form, birthdate: e.target.value})} />
-        <input className="border p-2 rounded w-24" placeholder="NRAN"
-          value={form.nran} onChange={e => setForm({...form, nran: e.target.value})} />
-        <select className="border p-2 rounded" required value={form.club_id}
-          onChange={e => setForm({...form, club_id: e.target.value})}>
-          <option value="">Club...</option>
-          {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">Ajouter</button>
-      </form>
-      <table className="w-full border-collapse text-sm">
-        <thead><tr className="bg-gray-100">
-          <th className="border p-2 text-left">Nom</th>
-          <th className="border p-2 text-left">Sexe</th>
-          <th className="border p-2 text-left">DDN</th>
-          <th className="border p-2 text-left">NRAN</th>
-          <th className="border p-2 text-left">Club</th>
-          <th className="border p-2 w-10"></th>
-        </tr></thead>
+        <input type="text" placeholder="Search name..." value={search}
+               onChange={e => setSearch(e.target.value)}
+               className="border p-2 rounded flex-1" />
+      </div>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b font-semibold">
+            <td className="p-2">Name</td>
+            <td className="p-2">Club</td>
+            <td className="p-2">Gender</td>
+            <td className="p-2">DOB</td>
+            <td className="p-2"></td>
+          </tr>
+        </thead>
         <tbody>
-          {athletes.map(a => (
-            <tr key={a.id}>
-              <td className="border p-2">{a.first_name} {a.last_name}</td>
-              <td className="border p-2">{a.gender}</td>
-              <td className="border p-2">{a.birthdate}</td>
-              <td className="border p-2">{a.nran}</td>
-              <td className="border p-2">{clubs.find(c => c.id === a.club_id)?.name}</td>
-              <td className="border p-2">
-                <button onClick={() => remove(a.id)} className="text-red-600">✕</button>
+          {filtered.map(a => (
+            <tr key={a.id} className="border-b hover:bg-gray-50">
+              <td className="p-2">{a.last_name}, {a.first_name}</td>
+              <td className="p-2">{a.club}</td>
+              <td className="p-2">{a.gender}</td>
+              <td className="p-2">{a.birthdate}</td>
+              <td className="p-2">
+                <Link to={`/athletes/${a.id}/register`}
+                      className="text-blue-600 hover:underline">Register</Link>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      <p className="mt-2 text-gray-500">{filtered.length} athletes</p>
     </div>
   )
 }

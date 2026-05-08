@@ -1,28 +1,37 @@
 """FastAPI application entry point."""
+import os
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .database import engine
+from .database import engine, SessionLocal
 from .models import Base
+from .events import load_events
 from .routers.api import router
-from .seed import seed_if_empty
 
-Base.metadata.create_all(bind=engine)
-seed_if_empty()
-
-app = FastAPI(title="Meet Manager", version="1.0.0")
+app = FastAPI(title="Meet Manager")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(router, prefix="/api")
+app.include_router(router)
 
 
-@app.get("/healthz")
-def health():
-    return {"ok": True}
+@app.on_event("startup")
+def startup():
+    Base.metadata.create_all(bind=engine)
+    # Load events from template JSON on first boot
+    template_path = Path(os.environ.get("TEMPLATE_JSON", "/app/template_struct.json"))
+    if template_path.exists():
+        db = SessionLocal()
+        try:
+            count = load_events(db, template_path)
+            if count:
+                print(f"Loaded {count} events from {template_path}")
+        finally:
+            db.close()

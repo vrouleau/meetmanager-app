@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { useLang } from '../i18n'
 import api from '../api'
 
 export default function Athletes({ role, clubId }) {
+  const { t } = useLang()
   const [athletes, setAthletes] = useState([])
   const [clubs, setClubs] = useState([])
   const [clubFilter, setClubFilter] = useState(clubId || '')
@@ -81,7 +83,7 @@ export default function Athletes({ role, clubId }) {
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Athletes</h1>
+      <h1 className="text-2xl font-bold mb-4">{t.athletes}</h1>
 
       {/* Club selector */}
       <div className="flex gap-2 mb-4 items-center">
@@ -94,17 +96,17 @@ export default function Athletes({ role, clubId }) {
           <span className="font-semibold">{clubs.find(c => String(c.id) === clubFilter)?.name}</span>
         )}
         {isAdmin && <button onClick={() => deleteClub(parseInt(clubFilter), clubs.find(c=>c.id===parseInt(clubFilter))?.name)}
-                className="text-red-600 text-sm hover:underline">Delete club</button>}
+                className="text-red-600 text-sm hover:underline">{t.delete_club}</button>}
         {isAdmin && <button onClick={() => setShowAddClub(true)}
-                className="text-blue-600 text-sm hover:underline">+ New club</button>}
+                className="text-blue-600 text-sm hover:underline">{t.new_club}</button>}
         <button onClick={async () => {
           if (!confirm('Reset PIN for this club?')) return
           const r = await api.post(`/clubs/${clubFilter}/reset-pin`, {})
           alert(`New PIN: ${r.data.pin}`)
           api.get('/clubs').then(r => setClubs(r.data))
-        }} className="text-orange-600 text-sm hover:underline">Reset PIN</button>
+        }} className="text-orange-600 text-sm hover:underline">{t.reset_pin}</button>
         <div className="flex-1" />
-        <input type="text" placeholder="Search..." value={search}
+        <input type="text" placeholder={t.search} value={search}
                onChange={e => setSearch(e.target.value)}
                className="border p-2 rounded w-48" />
       </div>
@@ -121,7 +123,7 @@ export default function Athletes({ role, clubId }) {
       {/* Add athlete */}
       <div className="mb-3">
         <button onClick={() => setShowAddAthlete(!showAddAthlete)}
-                className="bg-green-600 text-white px-3 py-1 rounded text-sm">+ Add Athlete</button>
+                className="bg-green-600 text-white px-3 py-1 rounded text-sm">{t.add_athlete}</button>
       </div>
       {showAddAthlete && clubFilter && (
         <form onSubmit={addAthlete} className="mb-4 p-3 border rounded bg-green-50 grid grid-cols-5 gap-2">
@@ -141,10 +143,10 @@ export default function Athletes({ role, clubId }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b font-semibold">
-            <td className="p-2">Name</td>
-            <td className="p-2">Gender</td>
-            <td className="p-2">DOB</td>
-            <td className="p-2">NRAN</td>
+            <td className="p-2">{t.last_name}, {t.first_name}</td>
+            <td className="p-2">{t.gender}</td>
+            <td className="p-2">{t.dob}</td>
+            <td className="p-2">{t.nran}</td>
             <td className="p-2"></td>
           </tr>
         </thead>
@@ -157,9 +159,9 @@ export default function Athletes({ role, clubId }) {
               <td className="p-2">{a.license}</td>
               <td className="p-2 flex gap-2">
                 <Link to={`/athletes/${a.id}/register`}
-                      className="text-blue-600 hover:underline">Edit</Link>
+                      className="text-blue-600 hover:underline">{t.edit}</Link>
                 <button onClick={() => deleteAthlete(a.id, `${a.first_name} ${a.last_name}`)}
-                        className="text-red-500 hover:underline text-xs">Delete</button>
+                        className="text-red-500 hover:underline text-xs">{t.delete}</button>
               </td>
             </tr>
           ))}

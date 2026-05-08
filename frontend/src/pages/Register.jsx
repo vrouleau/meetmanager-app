@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { useLang } from '../i18n'
 import api from '../api'
 
 function msToTime(ms) {
@@ -62,6 +63,7 @@ export default function Register() {
   const { id } = useParams()
   const [data, setData] = useState(null)
   const [saving, setSaving] = useState(false)
+  const { t } = useLang()
 
   useEffect(() => { load() }, [id])
 
@@ -103,7 +105,7 @@ export default function Register() {
 
   return (
     <div className="p-4 max-w-5xl mx-auto">
-      <Link to="/" className="text-blue-600 hover:underline">&larr; Athletes</Link>
+      <Link to="/" className="text-blue-600 hover:underline">&larr; {t.athletes}</Link>
 
       {/* Athlete Info */}
       <div className="mt-4 mb-6 p-4 border rounded bg-gray-50 grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -142,14 +144,14 @@ export default function Register() {
       </div>
 
       {/* Individual Events */}
-      <h2 className="text-lg font-semibold mb-2">Individual Events</h2>
+      <h2 className="text-lg font-semibold mb-2">{t.individual_events}</h2>
       <table className="w-full border-collapse text-sm mb-6">
         <thead><tr className="bg-gray-100">
           <th className="border p-2 w-8">✓</th>
-          <th className="border p-2 text-left">Event</th>
-          <th className="border p-2 text-left">Category</th>
-          <th className="border p-2 text-left">Best Time</th>
-          <th className="border p-2 text-left">Entry Time</th>
+          <th className="border p-2 text-left">{t.event}</th>
+          <th className="border p-2 text-left">{t.category}</th>
+          <th className="border p-2 text-left">{t.best_time}</th>
+          <th className="border p-2 text-left">{t.entry_time}</th>
         </tr></thead>
         <tbody>
           {individual_events.map(style => {
@@ -205,14 +207,14 @@ export default function Register() {
       {/* Relay Events */}
       {relay_events.length > 0 && (
         <>
-          <h2 className="text-lg font-semibold mb-2">Relays</h2>
+          <h2 className="text-lg font-semibold mb-2">{t.relays}</h2>
           <table className="w-full border-collapse text-sm">
             <thead><tr className="bg-gray-100">
               <th className="border p-2 w-8">✓</th>
-              <th className="border p-2 text-left">Event</th>
-              <th className="border p-2 text-left">Category</th>
-              <th className="border p-2 text-left">Entry Time</th>
-              <th className="border p-2 text-left">Teammates</th>
+              <th className="border p-2 text-left">{t.event}</th>
+              <th className="border p-2 text-left">{t.category}</th>
+              <th className="border p-2 text-left">{t.entry_time}</th>
+              <th className="border p-2 text-left">{t.teammates}</th>
             </tr></thead>
             <tbody>
               {relay_events.map(style => {

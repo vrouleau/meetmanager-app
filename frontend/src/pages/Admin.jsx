@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
+import { useLang } from '../i18n'
 import api from '../api'
 
 export default function Admin() {
   const [status, setStatus] = useState(null)
   const [meetInfo, setMeetInfo] = useState(null)
   const [msg, setMsg] = useState('')
+  const { t } = useLang()
 
   useEffect(() => { loadStatus(); loadMeetInfo() }, [])
 
@@ -58,7 +60,7 @@ export default function Admin() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Admin / Export</h1>
+      <h1 className="text-2xl font-bold mb-4">{t.admin}</h1>
 
       {status && (
         <div className="mb-4 p-3 bg-gray-100 rounded text-sm">
@@ -69,35 +71,34 @@ export default function Admin() {
 
       {meetInfo && (
         <div className="mb-4 p-3 bg-blue-50 rounded text-sm">
-          <strong>Meet:</strong>{' '}
+          <strong>{t.meet}:</strong>{' '}
           {meetInfo.filename
-            ? <>{meetInfo.filename} (uploaded {new Date(meetInfo.uploaded_at + 'Z').toLocaleString()}) — {meetInfo.events} events</>
-            : <span className="text-red-600">No meet uploaded yet</span>}
+            ? <>{meetInfo.filename} ({t.uploaded} {new Date(meetInfo.uploaded_at + 'Z').toLocaleString()}) — {meetInfo.events} {t.events}</>
+            : <span className="text-red-600">{t.no_meet}</span>}
         </div>
       )}
 
       <div className="space-y-4">
         <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">Upload Meet Structure (.lxf)</h2>
-          <p className="text-sm text-gray-600 mb-2">Import event structure from a SPLASH meet export. Required before registering athletes.</p>
+          <h2 className="font-semibold mb-2">{t.upload_meet}</h2>
+          <p className="text-sm text-gray-600 mb-2">{t.upload_meet_desc}</p>
           <input type="file" accept=".lxf" onChange={uploadMeet} />
         </div>
 
         <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">Upload Entries (.lxf)</h2>
-          <p className="text-sm text-gray-600 mb-2">Import clubs and athletes from a SPLASH entries export.</p>
+          <h2 className="font-semibold mb-2">{t.upload_entries}</h2>
+          <p className="text-sm text-gray-600 mb-2">{t.upload_entries_desc}</p>
           <input type="file" accept=".lxf" onChange={uploadEntries} />
         </div>
 
         <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">Upload Results (.lxf)</h2>
-          <p className="text-sm text-gray-600 mb-2">Import best times from a SPLASH results export.</p>
+          <h2 className="font-semibold mb-2">{t.upload_results}</h2>
+          <p className="text-sm text-gray-600 mb-2">{t.upload_results_desc}</p>
           <input type="file" accept=".lxf" onChange={uploadResults} />
         </div>
 
         <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">Change Admin PIN</h2>
-          <p className="text-sm text-gray-600 mb-2">Change your admin login PIN.</p>
+          <h2 className="font-semibold mb-2">{t.change_admin_pin}</h2>
           <form onSubmit={async e => {
             e.preventDefault()
             const newPin = e.target.pin.value
@@ -113,8 +114,8 @@ export default function Admin() {
         </div>
 
         <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">Regenerate All Club PINs</h2>
-          <p className="text-sm text-gray-600 mb-2">Generate new PINs for all clubs. Old PINs will stop working.</p>
+          <h2 className="font-semibold mb-2">{t.regen_pins}</h2>
+          <p className="text-sm text-gray-600 mb-2">{t.regen_pins_desc}</p>
           <button onClick={async () => {
             if (!confirm('Regenerate ALL club PINs? Coaches will need new PINs.')) return
             const r = await api.post('/clubs/regenerate-pins', {})
@@ -126,8 +127,8 @@ export default function Admin() {
         </div>
 
         <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">Flush All Registrations</h2>
-          <p className="text-sm text-gray-600 mb-2">Remove all event registrations (keeps athletes and best times).</p>
+          <h2 className="font-semibold mb-2">{t.flush_reg}</h2>
+          <p className="text-sm text-gray-600 mb-2">{t.flush_reg_desc}</p>
           <button onClick={async () => {
             if (!confirm('Delete ALL registrations? This cannot be undone.')) return
             const r = await api.delete('/registrations')
@@ -139,11 +140,11 @@ export default function Admin() {
         </div>
 
         <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">Export Registrations</h2>
-          <p className="text-sm text-gray-600 mb-2">Download Lenex .lxf with all current registrations.</p>
+          <h2 className="font-semibold mb-2">{t.export}</h2>
+          <p className="text-sm text-gray-600 mb-2">{t.export_desc}</p>
           <button onClick={exportLxf}
                   className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-            Download .lxf
+            {t.download_lxf}
           </button>
         </div>
       </div>

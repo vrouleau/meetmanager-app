@@ -275,6 +275,14 @@ def status(db: Session = Depends(get_db)):
     }
 
 
+@router.delete("/registrations")
+def flush_registrations(db: Session = Depends(get_db)):
+    """Delete all registrations (keeps best times)."""
+    count = db.query(Registration).delete()
+    db.commit()
+    return {"deleted": count}
+
+
 @router.get("/export")
 def export_lenex(db: Session = Depends(get_db)):
     """Generate and download Lenex .lxf."""

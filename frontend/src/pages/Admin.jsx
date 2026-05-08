@@ -63,6 +63,19 @@ export default function Admin() {
         </div>
 
         <div className="border p-4 rounded">
+          <h2 className="font-semibold mb-2">Flush All Registrations</h2>
+          <p className="text-sm text-gray-600 mb-2">Remove all event registrations (keeps athletes and best times).</p>
+          <button onClick={async () => {
+            if (!confirm('Delete ALL registrations? This cannot be undone.')) return
+            const r = await api.delete('/registrations')
+            setMsg(`Flushed ${r.data.deleted} registrations`)
+            loadStatus()
+          }} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+            Flush Registrations
+          </button>
+        </div>
+
+        <div className="border p-4 rounded">
           <h2 className="font-semibold mb-2">Export Registrations</h2>
           <p className="text-sm text-gray-600 mb-2">Download Lenex .lxf with all current registrations.</p>
           <button onClick={exportLxf}

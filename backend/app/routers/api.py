@@ -124,6 +124,18 @@ def delete_club(club_id: int, db: Session = Depends(get_db)):
     return {"deleted": True}
 
 
+@router.post("/clubs/{club_id}/reset-pin")
+def reset_club_pin(club_id: int, db: Session = Depends(get_db)):
+    """Reset PIN for a single club."""
+    import random
+    club = db.query(Club).get(club_id)
+    if not club:
+        raise HTTPException(404)
+    club.pin = f"{random.randint(100000, 999999)}"
+    db.commit()
+    return {"club": club.name, "pin": club.pin}
+
+
 @router.get("/athletes")
 def list_athletes(club_id: int = None, db: Session = Depends(get_db)):
     q = db.query(Athlete).options(joinedload(Athlete.club))

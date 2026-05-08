@@ -97,6 +97,12 @@ export default function Athletes({ role, clubId }) {
                 className="text-red-600 text-sm hover:underline">Delete club</button>}
         {isAdmin && <button onClick={() => setShowAddClub(true)}
                 className="text-blue-600 text-sm hover:underline">+ New club</button>}
+        <button onClick={async () => {
+          if (!confirm('Reset PIN for this club?')) return
+          const r = await api.post(`/clubs/${clubFilter}/reset-pin`, {})
+          alert(`New PIN: ${r.data.pin}`)
+          api.get('/clubs').then(r => setClubs(r.data))
+        }} className="text-orange-600 text-sm hover:underline">Reset PIN</button>
         <div className="flex-1" />
         <input type="text" placeholder="Search..." value={search}
                onChange={e => setSearch(e.target.value)}

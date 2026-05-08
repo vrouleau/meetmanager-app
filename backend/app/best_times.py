@@ -47,6 +47,12 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
 
     root = ET.fromstring(xml_bytes)
 
+    # Get course from MEET element
+    meet_el = root.find(".//MEET")
+    course = meet_el.get("course", "LCM") if meet_el is not None else "LCM"
+    if course not in ("LCM", "SCM"):
+        course = "LCM"  # treat SCY etc. as LCM
+
     # Build eventid -> style_uid map from the Lenex events
     event_style: dict[str, int] = {}
     for event_el in root.iter("EVENT"):
@@ -84,6 +90,7 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                 existing = db.query(BestTime).filter(
                     BestTime.athlete_id == athlete.id,
                     BestTime.style_uid == style_uid,
+                    BestTime.course == course,
                 ).first()
 
                 if existing:
@@ -96,6 +103,7 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                         athlete_id=athlete.id,
                         style_uid=style_uid,
                         time_ms=time_ms,
+                        course=course,
                         source=source,
                     ))
                     updated += 1

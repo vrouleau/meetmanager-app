@@ -91,12 +91,13 @@ class BestTime(Base):
     athlete_id = Column(Integer, ForeignKey("athletes.id"), nullable=False)
     style_uid = Column(Integer, nullable=False)
     time_ms = Column(Integer, nullable=False)
+    course = Column(String(3), nullable=False, default="LCM")  # LCM or SCM
     source = Column(String(100))
 
     athlete = relationship("Athlete", back_populates="best_times")
 
     __table_args__ = (
-        UniqueConstraint("athlete_id", "style_uid", name="uq_best_time"),
+        UniqueConstraint("athlete_id", "style_uid", "course", name="uq_best_time_course"),
     )
 
 

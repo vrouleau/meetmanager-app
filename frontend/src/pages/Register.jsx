@@ -150,12 +150,14 @@ export default function Register() {
           <th className="border p-2 w-8">✓</th>
           <th className="border p-2 text-left">{t.event}</th>
           <th className="border p-2 text-left">{t.category}</th>
-          <th className="border p-2 text-left">{t.best_time}</th>
+          <th className="border p-2 text-left">BT 50m</th>
+          <th className="border p-2 text-left">BT 25m</th>
           <th className="border p-2 text-left">{t.entry_time}</th>
         </tr></thead>
         <tbody>
           {individual_events.map(style => {
             const reg = style.categories.find(c => c.registered)
+            const bestMs = style.best_time_lcm_ms || style.best_time_scm_ms
             return (
               <tr key={style.style_uid} className={reg ? 'bg-green-50' : ''}>
                 <td className="border p-2 text-center">
@@ -164,7 +166,7 @@ export default function Register() {
                       if (reg) unregister(reg.registration_id)
                       else {
                         const cat = style.categories.find(c => c.age_code === suggested_age_code) || style.categories[0]
-                        registerEvent(cat.event_id, style.best_time_ms, cat.age_code)
+                        registerEvent(cat.event_id, bestMs, cat.age_code)
                       }
                     }} />
                 </td>
@@ -175,17 +177,18 @@ export default function Register() {
                     onChange={async e => {
                       const cat = style.categories.find(c => c.age_code === e.target.value)
                       if (reg) await unregister(reg.registration_id)
-                      await registerEvent(cat.event_id, style.best_time_ms, cat.age_code)
+                      await registerEvent(cat.event_id, bestMs, cat.age_code)
                     }}>
                     {style.categories.map(c => (
                       <option key={c.age_code} value={c.age_code}>{c.age_code}</option>
                     ))}
                   </select>
                 </td>
-                <td className="border p-2 text-gray-500">{msToTime(style.best_time_ms)}</td>
+                <td className="border p-2 text-gray-500">{msToTime(style.best_time_lcm_ms)}</td>
+                <td className="border p-2 text-gray-500">{msToTime(style.best_time_scm_ms)}</td>
                 <td className="border p-2">
                   {reg && (
-                    <TimeInput defaultValue={msToTime(reg.entry_time_ms || style.best_time_ms)}
+                    <TimeInput defaultValue={msToTime(reg.entry_time_ms || bestMs)}
                       key={`${reg.registration_id}-${reg.entry_time_ms}`}
                       onSave={async v => {
                         const ms = parseTime(v)

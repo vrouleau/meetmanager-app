@@ -230,7 +230,13 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
     best = db.query(BestTime).filter(
         BestTime.athlete_id == athlete_id
     ).all()
-    best_map = {b.style_uid: b.time_ms for b in best}
+    best_map_lcm: dict[int, int] = {}
+    best_map_scm: dict[int, int] = {}
+    for b in best:
+        if b.course == "SCM":
+            best_map_scm[b.style_uid] = b.time_ms
+        else:
+            best_map_lcm[b.style_uid] = b.time_ms
 
     events = db.query(Event).order_by(Event.event_number).all()
 
@@ -294,7 +300,8 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
 
     # Add best time to each style group
     for s in individual_events + relay_events:
-        s["best_time_ms"] = best_map.get(s["style_uid"])
+        s["best_time_lcm_ms"] = best_map_lcm.get(s["style_uid"])
+        s["best_time_scm_ms"] = best_map_scm.get(s["style_uid"])
 
     # Club athletes for relay teammate selection
     club_athletes = db.query(Athlete).filter(

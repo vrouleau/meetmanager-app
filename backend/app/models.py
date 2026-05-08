@@ -72,6 +72,7 @@ class Registration(Base):
     id = Column(Integer, primary_key=True)
     athlete_id = Column(Integer, ForeignKey("athletes.id"), nullable=False)
     event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    age_code = Column(String(10), nullable=False, default="OPEN")  # 1518, OPEN, MASTERS
     entry_time_ms = Column(Integer)  # None = NT
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -79,7 +80,7 @@ class Registration(Base):
     event = relationship("Event", back_populates="registrations")
 
     __table_args__ = (
-        UniqueConstraint("athlete_id", "event_id", name="uq_registration"),
+        UniqueConstraint("athlete_id", "event_id", "age_code", name="uq_registration"),
     )
 
 

@@ -20,6 +20,26 @@ def list_clubs(db: Session = Depends(get_db)):
              "athlete_count": len(c.athletes)} for c in clubs]
 
 
+@router.post("/clubs")
+def create_club(data: dict, db: Session = Depends(get_db)):
+    club = Club(name=data["name"], code=data.get("code", ""), nation=data.get("nation", "CAN"))
+    db.add(club)
+    db.commit()
+    return {"id": club.id}
+
+
+@router.delete("/clubs/{club_id}")
+def delete_club(club_id: int, db: Session = Depends(get_db)):
+    club = db.query(Club).get(club_id)
+    if not club:
+        raise HTTPException(404)
+    if club.athletes:
+        raise HTTPException(400, "Club has athletes — remove them first")
+    db.delete(club)
+    db.commit()
+    return {"deleted": True}
+
+
 @router.get("/athletes")
 def list_athletes(club_id: int = None, db: Session = Depends(get_db)):
     q = db.query(Athlete).options(joinedload(Athlete.club))
@@ -32,6 +52,35 @@ def list_athletes(club_id: int = None, db: Session = Depends(get_db)):
         "license": a.license, "club": a.club.name,
         "club_id": a.club_id,
     } for a in athletes]
+
+
+@router.post("/athletes")
+def create_athlete(data: dict, db: Session = Depends(get_db)):
+    from datetime import date as d
+    ath = Athlete(
+        first_name=data["first_name"],
+        last_name=data["last_name"],
+        gender=Gender(data.get("gender", "M")),
+        birthdate=d.fromisoformat(data["birthdate"]) if data.get("birthdate") else None,
+        license=data.get("license", ""),
+        club_id=data["club_id"],
+    )
+    db.add(ath)
+    db.commit()
+    return {"id": ath.id}
+
+
+@router.delete("/athletes/{athlete_id}")
+def delete_athlete(athlete_id: int, db: Session = Depends(get_db)):
+    athlete = db.query(Athlete).get(athlete_id)
+    if not athlete:
+        raise HTTPException(404)
+    # Delete registrations and best times first
+    db.query(Registration).filter(Registration.athlete_id == athlete_id).delete()
+    db.query(BestTime).filter(BestTime.athlete_id == athlete_id).delete()
+    db.delete(athlete)
+    db.commit()
+    return {"deleted": True}
 
 
 @router.get("/events")
@@ -63,10 +112,26 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
 
     events = db.query(Event).order_by(Event.event_number).all()
 
-    # Group events by style_uid, separate individual vs relay
+    # Filter events by athlete gender (individual only)
+    ath_gender_int = 1 if athlete.gender.value == "M" else 2
+
+    # Build style groups with fixed categories: 15-18, Open, Masters
+    # Each style has a prelim event (non-masters) and optionally a masters event
     from collections import defaultdict
     styles: dict[int, dict] = {}
+    event_lookup: dict[tuple, int] = {}  # (style_uid, masters) -> event_id
+
     for ev in events:
+        if ev.round == 9:
+            continue
+        if not ev.masters and ev.round != 2:
+            continue
+        if ev.relay_count == 1 and ev.gender != ath_gender_int:
+            continue
+        # For relays (gender=3/mixed), include all
+        if (ev.style_uid, ev.masters) not in event_lookup:
+            event_lookup[(ev.style_uid, ev.masters)] = ev.id
+
         if ev.style_uid not in styles:
             styles[ev.style_uid] = {
                 "style_uid": ev.style_uid,
@@ -75,18 +140,32 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
                 "relay_count": ev.relay_count,
                 "categories": [],
             }
-        reg = reg_map.get(ev.id)
-        styles[ev.style_uid]["categories"].append({
-            "event_id": ev.id,
-            "event_number": ev.event_number,
-            "gender": ev.gender,
-            "masters": ev.masters,
-            "round": ev.round,
-            "age_code": "Masters" if ev.masters else "Open/15-18",
-            "registered": reg is not None,
-            "registration_id": reg.id if reg else None,
-            "entry_time_ms": reg.entry_time_ms if reg else None,
-        })
+
+    # Build categories for each style
+    for uid, style in styles.items():
+        prelim_eid = event_lookup.get((uid, False))
+        masters_eid = event_lookup.get((uid, True))
+
+        # Fixed categories: 15-18, Open (both use prelim event), Masters (uses masters event)
+        if prelim_eid:
+            for age_code in ("15-18", "Open"):
+                reg = next((r for r in regs if r.event_id == prelim_eid and r.age_code == age_code), None)
+                style["categories"].append({
+                    "event_id": prelim_eid,
+                    "age_code": age_code,
+                    "registered": reg is not None,
+                    "registration_id": reg.id if reg else None,
+                    "entry_time_ms": reg.entry_time_ms if reg else None,
+                })
+        if masters_eid:
+            reg = next((r for r in regs if r.event_id == masters_eid and r.age_code == "Masters"), None)
+            style["categories"].append({
+                "event_id": masters_eid,
+                "age_code": "Masters",
+                "registered": reg is not None,
+                "registration_id": reg.id if reg else None,
+                "entry_time_ms": reg.entry_time_ms if reg else None,
+            })
 
     individual_events = [s for s in styles.values() if s["relay_count"] == 1]
     relay_events = [s for s in styles.values() if s["relay_count"] > 1]
@@ -136,11 +215,13 @@ def update_athlete(athlete_id: int, data: dict, db: Session = Depends(get_db)):
 def create_registration(data: dict, db: Session = Depends(get_db)):
     athlete_id = data["athlete_id"]
     event_id = data["event_id"]
+    age_code = data.get("age_code", "OPEN")
     entry_time_ms = data.get("entry_time_ms")
 
     existing = db.query(Registration).filter(
         Registration.athlete_id == athlete_id,
         Registration.event_id == event_id,
+        Registration.age_code == age_code,
     ).first()
 
     if existing:
@@ -150,7 +231,7 @@ def create_registration(data: dict, db: Session = Depends(get_db)):
 
     reg = Registration(
         athlete_id=athlete_id, event_id=event_id,
-        entry_time_ms=entry_time_ms,
+        age_code=age_code, entry_time_ms=entry_time_ms,
     )
     db.add(reg)
     db.commit()

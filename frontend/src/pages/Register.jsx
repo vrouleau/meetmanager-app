@@ -36,9 +36,9 @@ export default function Register() {
     load()
   }
 
-  async function registerEvent(eventId, timeMs) {
+  async function registerEvent(eventId, timeMs, ageCode = 'Open') {
     setSaving(true)
-    await api.post('/registrations', { athlete_id: parseInt(id), event_id: eventId, entry_time_ms: timeMs })
+    await api.post('/registrations', { athlete_id: parseInt(id), event_id: eventId, entry_time_ms: timeMs, age_code: ageCode })
     await load()
     setSaving(false)
   }
@@ -122,21 +122,21 @@ export default function Register() {
                   <input type="checkbox" checked={!!reg} disabled={saving}
                     onChange={() => {
                       if (reg) unregister(reg.registration_id)
-                      else registerEvent(style.categories[0].event_id, style.best_time_ms)
+                      else registerEvent(style.categories[0].event_id, style.best_time_ms, style.categories[0].age_code)
                     }} />
                 </td>
                 <td className="border p-2">{style.style_name}</td>
                 <td className="border p-2">
                   <select className="border p-1 rounded text-xs"
-                    value={reg ? reg.event_id : ''}
+                    value={reg ? reg.age_code : ''}
                     onChange={async e => {
-                      const eid = parseInt(e.target.value)
+                      const cat = style.categories.find(c => c.age_code === e.target.value)
                       if (reg) await unregister(reg.registration_id)
-                      await registerEvent(eid, style.best_time_ms)
+                      await registerEvent(cat.event_id, style.best_time_ms, cat.age_code)
                     }}>
                     {!reg && <option value="">—</option>}
                     {style.categories.map(c => (
-                      <option key={c.event_id} value={c.event_id}>{c.age_code}</option>
+                      <option key={c.age_code} value={c.age_code}>{c.age_code}</option>
                     ))}
                   </select>
                 </td>
@@ -150,7 +150,8 @@ export default function Register() {
                         const ms = parseTime(e.target.value)
                         if (ms === undefined) return
                         await api.post('/registrations', {
-                          athlete_id: parseInt(id), event_id: reg.event_id, entry_time_ms: ms
+                          athlete_id: parseInt(id), event_id: reg.event_id,
+                          age_code: reg.age_code, entry_time_ms: ms
                         })
                         load()
                       }} />
@@ -184,21 +185,21 @@ export default function Register() {
                       <input type="checkbox" checked={!!reg} disabled={saving}
                         onChange={() => {
                           if (reg) unregister(reg.registration_id)
-                          else registerEvent(style.categories[0].event_id, null)
+                          else registerEvent(style.categories[0].event_id, null, style.categories[0].age_code)
                         }} />
                     </td>
                     <td className="border p-2">{style.style_name} ({style.relay_count}x)</td>
                     <td className="border p-2">
                       <select className="border p-1 rounded text-xs"
-                        value={reg ? reg.event_id : ''}
+                        value={reg ? reg.age_code : ''}
                         onChange={async e => {
-                          const eid = parseInt(e.target.value)
+                          const cat = style.categories.find(c => c.age_code === e.target.value)
                           if (reg) await unregister(reg.registration_id)
-                          await registerEvent(eid, null)
+                          await registerEvent(cat.event_id, null, cat.age_code)
                         }}>
                         {!reg && <option value="">—</option>}
                         {style.categories.map(c => (
-                          <option key={c.event_id} value={c.event_id}>{c.age_code}</option>
+                          <option key={c.age_code} value={c.age_code}>{c.age_code}</option>
                         ))}
                       </select>
                     </td>

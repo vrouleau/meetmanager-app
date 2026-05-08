@@ -9,7 +9,7 @@ export default function Login({ onLogin }) {
     e.preventDefault()
     setError('')
     try {
-      const r = await api.get(`/auth?pin=${pin}`)
+      const r = await api.post('/auth', { pin })
       localStorage.setItem('pin', pin)
       localStorage.setItem('role', r.data.role)
       localStorage.setItem('club_id', r.data.club_id || '')

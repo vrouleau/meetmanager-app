@@ -10,7 +10,7 @@ from .models import Base
 from .events import load_events
 from .routers.api import router
 
-app = FastAPI(title="Meet Manager")
+app = FastAPI(title="Meet Manager", docs_url=None, redoc_url=None)
 
 app.add_middleware(
     CORSMiddleware,

@@ -6,7 +6,10 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request
+from fastapi.responses import Response
 from sqlalchemy.orm import Session, joinedload
+from collections import defaultdict
+import time as _time
 
 from ..database import get_db
 from ..models import Club, Athlete, Event, Registration, BestTime, AppConfig, Gender
@@ -18,6 +21,21 @@ router = APIRouter(prefix="/api")
 
 MEET_STORAGE = Path(os.environ.get("MEET_STORAGE", "/app/data/meet.lxf"))
 ADMIN_PIN = os.environ.get("ADMIN_PIN", "000000")
+
+# Rate limiting: max 5 attempts per IP per 60 seconds
+_auth_attempts: dict[str, list[float]] = defaultdict(list)
+_RATE_LIMIT = 5
+_RATE_WINDOW = 60
+
+
+def _check_rate_limit(ip: str):
+    now = _time.time()
+    attempts = _auth_attempts[ip]
+    # Prune old attempts
+    _auth_attempts[ip] = [t for t in attempts if now - t < _RATE_WINDOW]
+    if len(_auth_attempts[ip]) >= _RATE_LIMIT:
+        raise HTTPException(429, "Too many attempts. Try again later.")
+    _auth_attempts[ip].append(now)
 
 
 def get_club_from_pin(db: Session, pin: str) -> Club | None:
@@ -40,10 +58,12 @@ def require_pin(request, db: Session):
     return club.id
 
 
-@router.get("/auth")
-def auth(pin: str, request: Request, db: Session = Depends(get_db)):
+@router.post("/auth")
+def auth(data: dict, request: Request, db: Session = Depends(get_db)):
     """Validate PIN, return club info."""
     ip = request.client.host if request.client else "?"
+    _check_rate_limit(ip)
+    pin = data.get("pin", "")
     if pin == ADMIN_PIN:
         print(f"[LOGIN] admin from {ip}")
         return {"role": "admin", "club_id": None, "club_name": "Admin"}

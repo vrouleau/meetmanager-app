@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
@@ -41,13 +41,17 @@ def require_pin(request, db: Session):
 
 
 @router.get("/auth")
-def auth(pin: str, db: Session = Depends(get_db)):
+def auth(pin: str, request: Request, db: Session = Depends(get_db)):
     """Validate PIN, return club info."""
+    ip = request.client.host if request.client else "?"
     if pin == ADMIN_PIN:
+        print(f"[LOGIN] admin from {ip}")
         return {"role": "admin", "club_id": None, "club_name": "Admin"}
     club = db.query(Club).filter(Club.pin == pin).first()
     if not club:
+        print(f"[LOGIN] FAILED pin={pin} from {ip}")
         raise HTTPException(401, "Invalid PIN")
+    print(f"[LOGIN] coach club=\"{club.name}\" from {ip}")
     return {"role": "coach", "club_id": club.id, "club_name": club.name}
 
 

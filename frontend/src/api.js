@@ -21,6 +21,15 @@ const api = {
     if (!res.ok) throw new Error(`${res.status}`)
     return { data: await res.json() }
   },
+  async put(path, body) {
+    const res = await fetch(`${API}${path}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error(`${res.status}`)
+    return { data: await res.json() }
+  },
 }
 
 export default api

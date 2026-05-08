@@ -10,18 +10,20 @@ function msToTime(ms) {
   return `${m}:${s.toString().padStart(2, '0')}.${cs.toString().padStart(2, '0')}`
 }
 
-function timeToMs(str) {
-  if (!str) return null
-  const m = str.match(/^(\d+):(\d+)\.(\d+)$/)
+function parseTime(str) {
+  if (!str || str.trim().toLowerCase() === 'nt') return null
+  const s = str.trim()
+  let m = s.match(/^(\d+):(\d+)\.(\d+)$/)
   if (m) return parseInt(m[1]) * 60000 + parseInt(m[2]) * 1000 + parseInt(m[3]) * 10
-  const m2 = str.match(/^(\d+)\.(\d+)$/)
-  if (m2) return parseInt(m2[1]) * 1000 + parseInt(m2[2]) * 10
-  return null
+  m = s.match(/^(\d+)\.(\d+)$/)
+  if (m) return parseInt(m[1]) * 1000 + parseInt(m[2]) * 10
+  return undefined
 }
 
 export default function Register() {
   const { id } = useParams()
   const [data, setData] = useState(null)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => { load() }, [id])
 
@@ -29,78 +31,213 @@ export default function Register() {
     api.get(`/athletes/${id}/registration`).then(r => setData(r.data))
   }
 
-  async function toggle(entry) {
-    if (entry.registered) {
-      await api.delete(`/registrations/${entry.registration_id}`)
-    } else {
-      await api.post('/registrations', {
-        athlete_id: parseInt(id),
-        event_id: entry.event_id,
-        entry_time_ms: entry.best_time_ms || null,
-      })
-    }
+  async function saveAthlete(field, value) {
+    await api.put(`/athletes/${id}`, { [field]: value })
     load()
   }
 
-  async function updateTime(entry, timeStr) {
-    const ms = timeToMs(timeStr)
-    await api.post('/registrations', {
-      athlete_id: parseInt(id),
-      event_id: entry.event_id,
-      entry_time_ms: ms,
-    })
+  async function registerEvent(eventId, timeMs) {
+    setSaving(true)
+    await api.post('/registrations', { athlete_id: parseInt(id), event_id: eventId, entry_time_ms: timeMs })
+    await load()
+    setSaving(false)
+  }
+
+  async function unregister(regId) {
+    setSaving(true)
+    await api.delete(`/registrations/${regId}`)
+    await load()
+    setSaving(false)
+  }
+
+  async function updateTime(regId, value) {
+    const ms = parseTime(value)
+    if (ms === undefined) { alert("Format: M:SS.cc"); return }
+    await api.post('/registrations', { athlete_id: parseInt(id), event_id: 0, entry_time_ms: ms })
+    // Actually need to update existing - use PUT or re-register
+    // For now, find the event_id from the registration and re-post
     load()
   }
 
   if (!data) return <div className="p-4">Loading...</div>
 
-  const genderLabel = g => ({ 1: 'M', 2: 'F', 3: 'X' }[g] || '?')
+  const { athlete, individual_events, relay_events, club_athletes } = data
 
   return (
     <div className="p-4 max-w-5xl mx-auto">
       <Link to="/" className="text-blue-600 hover:underline">&larr; Athletes</Link>
-      <h1 className="text-2xl font-bold mt-2 mb-4">
-        {data.athlete.last_name}, {data.athlete.first_name}
-        <span className="text-gray-500 text-lg ml-2">({data.athlete.club})</span>
-      </h1>
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b font-semibold">
-            <td className="p-2 w-8">✓</td>
-            <td className="p-2">Event</td>
-            <td className="p-2">Gender</td>
-            <td className="p-2">Masters</td>
-            <td className="p-2">Best Time</td>
-            <td className="p-2">Entry Time</td>
-          </tr>
-        </thead>
+      {/* Athlete Info */}
+      <div className="mt-4 mb-6 p-4 border rounded bg-gray-50 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div>
+          <label className="text-xs text-gray-500">First Name</label>
+          <input className="border p-1 rounded w-full" defaultValue={athlete.first_name}
+                 onBlur={e => saveAthlete('first_name', e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500">Last Name</label>
+          <input className="border p-1 rounded w-full" defaultValue={athlete.last_name}
+                 onBlur={e => saveAthlete('last_name', e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500">Gender</label>
+          <select className="border p-1 rounded w-full" defaultValue={athlete.gender}
+                  onChange={e => saveAthlete('gender', e.target.value)}>
+            <option value="M">M</option>
+            <option value="F">F</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-xs text-gray-500">DOB</label>
+          <input type="date" className="border p-1 rounded w-full" defaultValue={athlete.birthdate}
+                 onBlur={e => saveAthlete('birthdate', e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500">NRAN</label>
+          <input className="border p-1 rounded w-full" defaultValue={athlete.license}
+                 onBlur={e => saveAthlete('license', e.target.value)} />
+        </div>
+        <div className="col-span-2">
+          <label className="text-xs text-gray-500">Club</label>
+          <input className="border p-1 rounded w-full bg-gray-100" value={athlete.club} readOnly />
+        </div>
+      </div>
+
+      {/* Individual Events */}
+      <h2 className="text-lg font-semibold mb-2">Individual Events</h2>
+      <table className="w-full border-collapse text-sm mb-6">
+        <thead><tr className="bg-gray-100">
+          <th className="border p-2 w-8">✓</th>
+          <th className="border p-2 text-left">Event</th>
+          <th className="border p-2 text-left">Category</th>
+          <th className="border p-2 text-left">Best Time</th>
+          <th className="border p-2 text-left">Entry Time</th>
+        </tr></thead>
         <tbody>
-          {data.entries.map(e => (
-            <tr key={e.event_id} className={`border-b ${e.registered ? 'bg-green-50' : ''}`}>
-              <td className="p-2">
-                <input type="checkbox" checked={e.registered}
-                       onChange={() => toggle(e)} />
-              </td>
-              <td className="p-2">
-                #{e.event_number} {e.style_name}
-                {e.relay_count > 1 && ` (${e.relay_count}x)`}
-              </td>
-              <td className="p-2">{genderLabel(e.gender)}</td>
-              <td className="p-2">{e.masters ? 'MA' : ''}</td>
-              <td className="p-2 text-gray-500">{msToTime(e.best_time_ms)}</td>
-              <td className="p-2">
-                {e.registered && (
-                  <input type="text" defaultValue={msToTime(e.entry_time_ms)}
-                         placeholder="m:ss.cc"
-                         className="border p-1 w-24 rounded"
-                         onBlur={ev => updateTime(e, ev.target.value)} />
-                )}
-              </td>
-            </tr>
-          ))}
+          {individual_events.map(style => {
+            const reg = style.categories.find(c => c.registered)
+            return (
+              <tr key={style.style_uid} className={reg ? 'bg-green-50' : ''}>
+                <td className="border p-2 text-center">
+                  <input type="checkbox" checked={!!reg} disabled={saving}
+                    onChange={() => {
+                      if (reg) unregister(reg.registration_id)
+                      else registerEvent(style.categories[0].event_id, style.best_time_ms)
+                    }} />
+                </td>
+                <td className="border p-2">{style.style_name}</td>
+                <td className="border p-2">
+                  <select className="border p-1 rounded text-xs"
+                    value={reg ? reg.event_id : ''}
+                    onChange={async e => {
+                      const eid = parseInt(e.target.value)
+                      if (reg) await unregister(reg.registration_id)
+                      await registerEvent(eid, style.best_time_ms)
+                    }}>
+                    {!reg && <option value="">—</option>}
+                    {style.categories.map(c => (
+                      <option key={c.event_id} value={c.event_id}>{c.age_code}</option>
+                    ))}
+                  </select>
+                </td>
+                <td className="border p-2 text-gray-500">{msToTime(style.best_time_ms)}</td>
+                <td className="border p-2">
+                  {reg && (
+                    <input className="border p-1 rounded w-24" placeholder="NT"
+                      defaultValue={msToTime(reg.entry_time_ms)}
+                      key={`${reg.registration_id}-${reg.entry_time_ms}`}
+                      onBlur={async e => {
+                        const ms = parseTime(e.target.value)
+                        if (ms === undefined) return
+                        await api.post('/registrations', {
+                          athlete_id: parseInt(id), event_id: reg.event_id, entry_time_ms: ms
+                        })
+                        load()
+                      }} />
+                  )}
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
+
+      {/* Relay Events */}
+      {relay_events.length > 0 && (
+        <>
+          <h2 className="text-lg font-semibold mb-2">Relays</h2>
+          <table className="w-full border-collapse text-sm">
+            <thead><tr className="bg-gray-100">
+              <th className="border p-2 w-8">✓</th>
+              <th className="border p-2 text-left">Event</th>
+              <th className="border p-2 text-left">Category</th>
+              <th className="border p-2 text-left">Entry Time</th>
+              <th className="border p-2 text-left">Teammates</th>
+            </tr></thead>
+            <tbody>
+              {relay_events.map(style => {
+                const reg = style.categories.find(c => c.registered)
+                const teammateCount = style.relay_count - 1
+                return (
+                  <tr key={style.style_uid} className={reg ? 'bg-green-50' : ''}>
+                    <td className="border p-2 text-center">
+                      <input type="checkbox" checked={!!reg} disabled={saving}
+                        onChange={() => {
+                          if (reg) unregister(reg.registration_id)
+                          else registerEvent(style.categories[0].event_id, null)
+                        }} />
+                    </td>
+                    <td className="border p-2">{style.style_name} ({style.relay_count}x)</td>
+                    <td className="border p-2">
+                      <select className="border p-1 rounded text-xs"
+                        value={reg ? reg.event_id : ''}
+                        onChange={async e => {
+                          const eid = parseInt(e.target.value)
+                          if (reg) await unregister(reg.registration_id)
+                          await registerEvent(eid, null)
+                        }}>
+                        {!reg && <option value="">—</option>}
+                        {style.categories.map(c => (
+                          <option key={c.event_id} value={c.event_id}>{c.age_code}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="border p-2">
+                      {reg && (
+                        <input className="border p-1 rounded w-24" placeholder="NT"
+                          defaultValue={msToTime(reg.entry_time_ms)}
+                          key={`r-${reg.registration_id}`}
+                          onBlur={async e => {
+                            const ms = parseTime(e.target.value)
+                            if (ms === undefined) return
+                            await api.post('/registrations', {
+                              athlete_id: parseInt(id), event_id: reg.event_id, entry_time_ms: ms
+                            })
+                            load()
+                          }} />
+                      )}
+                    </td>
+                    <td className="border p-2">
+                      {reg && (
+                        <div className="flex flex-wrap gap-1">
+                          {Array.from({length: teammateCount}, (_, i) => (
+                            <select key={i} className="border p-1 rounded text-xs w-40">
+                              <option value="">Member {i + 2}...</option>
+                              {club_athletes.map(a => (
+                                <option key={a.id} value={a.id}>{a.name}</option>
+                              ))}
+                            </select>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </>
+      )}
     </div>
   )
 }

@@ -62,32 +62,74 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
     best_map = {b.style_uid: b.time_ms for b in best}
 
     events = db.query(Event).order_by(Event.event_number).all()
-    entries = []
+
+    # Group events by style_uid, separate individual vs relay
+    from collections import defaultdict
+    styles: dict[int, dict] = {}
     for ev in events:
+        if ev.style_uid not in styles:
+            styles[ev.style_uid] = {
+                "style_uid": ev.style_uid,
+                "style_name": ev.style_name,
+                "distance": ev.distance,
+                "relay_count": ev.relay_count,
+                "categories": [],
+            }
         reg = reg_map.get(ev.id)
-        entries.append({
+        styles[ev.style_uid]["categories"].append({
             "event_id": ev.id,
-            "style_uid": ev.style_uid,
-            "style_name": ev.style_name,
-            "distance": ev.distance,
             "event_number": ev.event_number,
             "gender": ev.gender,
             "masters": ev.masters,
-            "relay_count": ev.relay_count,
+            "round": ev.round,
+            "age_code": "Masters" if ev.masters else "Open/15-18",
             "registered": reg is not None,
             "registration_id": reg.id if reg else None,
             "entry_time_ms": reg.entry_time_ms if reg else None,
-            "best_time_ms": best_map.get(ev.style_uid),
         })
+
+    individual_events = [s for s in styles.values() if s["relay_count"] == 1]
+    relay_events = [s for s in styles.values() if s["relay_count"] > 1]
+
+    # Add best time to each style group
+    for s in individual_events + relay_events:
+        s["best_time_ms"] = best_map.get(s["style_uid"])
+
+    # Club athletes for relay teammate selection
+    club_athletes = db.query(Athlete).filter(
+        Athlete.club_id == athlete.club_id,
+        Athlete.id != athlete_id,
+    ).order_by(Athlete.last_name).all()
 
     return {
         "athlete": {
             "id": athlete.id, "first_name": athlete.first_name,
             "last_name": athlete.last_name, "gender": athlete.gender.value,
-            "club": athlete.club.name,
+            "birthdate": str(athlete.birthdate) if athlete.birthdate else "",
+            "license": athlete.license or "",
+            "club": athlete.club.name, "club_id": athlete.club_id,
         },
-        "entries": entries,
+        "individual_events": individual_events,
+        "relay_events": relay_events,
+        "club_athletes": [{"id": a.id, "name": f"{a.last_name}, {a.first_name}"}
+                          for a in club_athletes],
     }
+
+
+@router.put("/athletes/{athlete_id}")
+def update_athlete(athlete_id: int, data: dict, db: Session = Depends(get_db)):
+    athlete = db.query(Athlete).get(athlete_id)
+    if not athlete:
+        raise HTTPException(404)
+    if "first_name" in data: athlete.first_name = data["first_name"]
+    if "last_name" in data: athlete.last_name = data["last_name"]
+    if "gender" in data: athlete.gender = Gender(data["gender"])
+    if "birthdate" in data:
+        from datetime import date as d
+        athlete.birthdate = d.fromisoformat(data["birthdate"]) if data["birthdate"] else None
+    if "license" in data: athlete.license = data["license"]
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/registrations")

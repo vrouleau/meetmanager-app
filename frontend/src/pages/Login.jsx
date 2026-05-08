@@ -14,6 +14,10 @@ export default function Login({ onLogin }) {
       localStorage.setItem('role', r.data.role)
       localStorage.setItem('club_id', r.data.club_id || '')
       localStorage.setItem('club_name', r.data.club_name)
+      // Append to login log
+      const logs = JSON.parse(localStorage.getItem('login_log') || '[]')
+      logs.push({ time: new Date().toLocaleString(), role: r.data.role, club: r.data.club_name })
+      localStorage.setItem('login_log', JSON.stringify(logs.slice(-50)))
       onLogin(r.data)
     } catch {
       setError('PIN invalide')

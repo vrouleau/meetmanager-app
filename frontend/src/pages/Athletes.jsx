@@ -145,7 +145,7 @@ export default function Athletes() {
               <td className="p-2">{a.license}</td>
               <td className="p-2 flex gap-2">
                 <Link to={`/athletes/${a.id}/register`}
-                      className="text-blue-600 hover:underline">Register</Link>
+                      className="text-blue-600 hover:underline">Edit</Link>
                 <button onClick={() => deleteAthlete(a.id, `${a.first_name} ${a.last_name}`)}
                         className="text-red-500 hover:underline text-xs">Delete</button>
               </td>

@@ -24,9 +24,21 @@ function TimeInput({ defaultValue, onSave }) {
   const [value, setValue] = useState(defaultValue || '')
   const [error, setError] = useState(false)
 
-  function validate(str) {
-    if (!str || str.trim().toLowerCase() === 'nt') return true
-    return /^\d+:\d{2}\.\d{2}$/.test(str.trim()) || /^\d+\.\d{2}$/.test(str.trim())
+  function normalize(str) {
+    if (!str || str.trim().toLowerCase() === 'nt') return ''
+    let s = str.trim()
+    // Already formatted
+    if (/^\d+:\d{2}\.\d{2}$/.test(s) || /^\d+\.\d{2}$/.test(s)) return s
+    // Raw digits: 3045 -> 30.45, 12367 -> 1:23.67, 10000 -> 1:00.00
+    if (/^\d{3,6}$/.test(s)) {
+      const n = parseInt(s)
+      const cs = n % 100
+      const sec = Math.floor(n / 100) % 60
+      const min = Math.floor(n / 6000)
+      if (min > 0) return `${min}:${sec.toString().padStart(2, '0')}.${cs.toString().padStart(2, '0')}`
+      return `${sec}.${cs.toString().padStart(2, '0')}`
+    }
+    return null // invalid
   }
 
   return (
@@ -36,9 +48,12 @@ function TimeInput({ defaultValue, onSave }) {
       onChange={e => { setValue(e.target.value); setError(false) }}
       onBlur={e => {
         const v = e.target.value
-        if (!validate(v)) { setError(true); return }
+        if (!v || v.trim().toLowerCase() === 'nt') { onSave(''); return }
+        const norm = normalize(v)
+        if (norm === null) { setError(true); return }
+        setValue(norm)
         setError(false)
-        onSave(v)
+        onSave(norm)
       }} />
   )
 }

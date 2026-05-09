@@ -7,7 +7,7 @@ export default function Athletes({ role, clubId }) {
   const { t } = useLang()
   const [athletes, setAthletes] = useState([])
   const [clubs, setClubs] = useState([])
-  const [clubFilter, setClubFilter] = useState(clubId || '')
+  const [clubFilter, setClubFilter] = useState(clubId || sessionStorage.getItem('clubFilter') || '')
   const [search, setSearch] = useState('')
   const [showAddAthlete, setShowAddAthlete] = useState(false)
   const [showAddClub, setShowAddClub] = useState(false)
@@ -18,9 +18,13 @@ export default function Athletes({ role, clubId }) {
     api.get('/clubs').then(r => {
       setClubs(r.data)
       if (clubId) setClubFilter(clubId)
-      else if (r.data.length > 0) setClubFilter(String(r.data[0].id))
+      else if (!clubFilter && r.data.length > 0) setClubFilter(String(r.data[0].id))
     })
   }, [])
+
+  useEffect(() => {
+    if (clubFilter) sessionStorage.setItem('clubFilter', clubFilter)
+  }, [clubFilter])
 
   useEffect(() => {
     if (clubFilter) {

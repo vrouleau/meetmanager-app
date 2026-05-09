@@ -78,14 +78,24 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                 skipped += 1
                 continue
 
+            # Collect best candidate times per event: entry time and result time
+            event_times: dict[str, list[int]] = {}
+            for entry_el in ath_el.iter("ENTRY"):
+                eid = entry_el.get("eventid", "")
+                t = _lenex_time_to_ms(entry_el.get("entrytime", ""))
+                if t and eid:
+                    event_times.setdefault(eid, []).append(t)
             for result_el in ath_el.iter("RESULT"):
                 eid = result_el.get("eventid", "")
-                time_str = result_el.get("swimtime", "")
-                time_ms = _lenex_time_to_ms(time_str)
-                style_uid = event_style.get(eid)
+                t = _lenex_time_to_ms(result_el.get("swimtime", ""))
+                if t and eid:
+                    event_times.setdefault(eid, []).append(t)
 
-                if not time_ms or not style_uid:
+            for eid, times in event_times.items():
+                style_uid = event_style.get(eid)
+                if not style_uid:
                     continue
+                best_candidate = min(times)
 
                 existing = db.query(BestTime).filter(
                     BestTime.athlete_id == athlete.id,
@@ -94,15 +104,15 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                 ).first()
 
                 if existing:
-                    if time_ms < existing.time_ms:
-                        existing.time_ms = time_ms
+                    if best_candidate < existing.time_ms:
+                        existing.time_ms = best_candidate
                         existing.source = source
                         updated += 1
                 else:
                     db.add(BestTime(
                         athlete_id=athlete.id,
                         style_uid=style_uid,
-                        time_ms=time_ms,
+                        time_ms=best_candidate,
                         course=course,
                         source=source,
                     ))

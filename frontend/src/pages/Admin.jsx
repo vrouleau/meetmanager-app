@@ -82,7 +82,7 @@ export default function Admin() {
           {meetInfo.filename
             ? <>
                 <strong>{meetInfo.meet_name || meetInfo.filename}</strong>
-                {' '}— {meetInfo.course || '?'} — {meetInfo.masters ? 'Masters' : 'No Masters'}
+                {' '}— {({'LCM':'50m','SCM':'25m'})[meetInfo.course] || meetInfo.course || '?'} — {meetInfo.masters ? 'Masters' : 'No Masters'}
                 {' '}— {meetInfo.events} {t.events}
                 <br/><span className="text-gray-500">({meetInfo.filename}, {t.uploaded} {new Date(meetInfo.uploaded_at + 'Z').toLocaleString()})</span>
               </>

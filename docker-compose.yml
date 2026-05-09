@@ -17,10 +17,11 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql://meetmgr:meetmgr@db:5432/meetmgr
-      ADMIN_PIN: "314159"
+      ADMIN_PIN: "${ADMIN_PIN:-314159}"
       RESEND_API_KEY: "${RESEND_API_KEY:-}"
       RESEND_FROM_EMAIL: "${RESEND_FROM_EMAIL:-noreply@example.com}"
       APP_BASE_URL: "${APP_BASE_URL:-http://localhost:8001}"
+      SECRET_KEY: "${SECRET_KEY:-change-me-to-a-random-string}"
     depends_on:
       db:
         condition: service_healthy

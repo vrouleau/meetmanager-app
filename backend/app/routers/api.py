@@ -396,10 +396,13 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
                 "categories": [],
             }
 
+    meet_masters_cfg = db.query(AppConfig).get("meet_masters")
+    meet_has_masters = meet_masters_cfg and meet_masters_cfg.value == "T"
+
     # Build categories for each style
     for uid, style in styles.items():
         prelim_eid = event_lookup.get((uid, False))
-        masters_eid = event_lookup.get((uid, True))
+        masters_eid = event_lookup.get((uid, True)) if meet_has_masters else None
 
         # Fixed categories: 15-18, Open (both use prelim event), Masters (uses masters event)
         if prelim_eid:

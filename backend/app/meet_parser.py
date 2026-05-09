@@ -59,6 +59,8 @@ class MeetSession:
 @dataclass
 class ParsedMeet:
     meet_name: str = ""
+    course: str = ""
+    masters: bool = False
     sessions: list[MeetSession] = field(default_factory=list)
 
     @property
@@ -109,6 +111,8 @@ def parse_meet_lxf(source) -> ParsedMeet:
     meet_el = root.find(".//MEET")
     if meet_el is not None:
         meet.meet_name = meet_el.get("name", "")
+        meet.course = meet_el.get("course", "")
+        meet.masters = meet_el.get("masters", "").upper() == "T"
 
     for session_el in root.iter("SESSION"):
         ses = MeetSession(

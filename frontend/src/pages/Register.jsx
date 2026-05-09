@@ -150,8 +150,8 @@ export default function Register() {
           <th className="border p-2 w-8">✓</th>
           <th className="border p-2 text-left">{t.event}</th>
           <th className="border p-2 text-left">{t.category}</th>
-          <th className="border p-2 text-left">BT 50m</th>
-          <th className="border p-2 text-left">BT 25m</th>
+          <th className="border p-2 text-left">{t.bt_50}</th>
+          <th className="border p-2 text-left">{t.bt_25}</th>
           <th className="border p-2 text-left">{t.entry_time}</th>
         </tr></thead>
         <tbody>

@@ -80,7 +80,12 @@ export default function Admin() {
         <div className="mb-4 p-3 bg-blue-50 rounded text-sm">
           <strong>{t.meet}:</strong>{' '}
           {meetInfo.filename
-            ? <>{meetInfo.filename} ({t.uploaded} {new Date(meetInfo.uploaded_at + 'Z').toLocaleString()}) — {meetInfo.events} {t.events}</>
+            ? <>
+                <strong>{meetInfo.meet_name || meetInfo.filename}</strong>
+                {' '}— {meetInfo.course || '?'} — {meetInfo.masters ? 'Masters' : 'No Masters'}
+                {' '}— {meetInfo.events} {t.events}
+                <br/><span className="text-gray-500">({meetInfo.filename}, {t.uploaded} {new Date(meetInfo.uploaded_at + 'Z').toLocaleString()})</span>
+              </>
             : <span className="text-red-600">{t.no_meet}</span>}
         </div>
       )}

@@ -26,6 +26,7 @@ class Club(Base):
     code = Column(String(20))
     nation = Column(String(3))
     pin = Column(String(6))
+    admin_email = Column(String(200))
     athletes = relationship("Athlete", back_populates="club")
 
 
@@ -99,6 +100,17 @@ class BestTime(Base):
     __table_args__ = (
         UniqueConstraint("athlete_id", "style_uid", "course", name="uq_best_time_course"),
     )
+
+
+class SecretLink(Base):
+    __tablename__ = "secret_links"
+    id = Column(Integer, primary_key=True)
+    token = Column(String(36), unique=True, nullable=False)  # UUID
+    club_id = Column(Integer, ForeignKey("clubs.id"), nullable=False)
+    pin_encrypted = Column(String(200), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    viewed = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class AppConfig(Base):

@@ -6,10 +6,11 @@ import { BUILD_TIMESTAMP } from '../buildInfo'
 export default function Admin() {
   const [status, setStatus] = useState(null)
   const [meetInfo, setMeetInfo] = useState(null)
+  const [clubs, setClubs] = useState([])
   const [msg, setMsg] = useState('')
-  const { t } = useLang()
+  const { t, lang } = useLang()
 
-  useEffect(() => { loadStatus(); loadMeetInfo() }, [])
+  useEffect(() => { loadStatus(); loadMeetInfo(); loadClubs() }, [])
 
   async function loadStatus() {
     const r = await api.get('/status')
@@ -19,6 +20,11 @@ export default function Admin() {
   async function loadMeetInfo() {
     const r = await api.get('/meet-info')
     setMeetInfo(r.data)
+  }
+
+  async function loadClubs() {
+    const r = await api.get('/clubs')
+    setClubs(r.data)
   }
 
   async function uploadMeet(e) {
@@ -151,6 +157,46 @@ export default function Admin() {
       </div>
 
       {msg && <p className="mt-4 text-green-700">{msg}</p>}
+
+      {/* Club email + Send PIN */}
+      {clubs.length > 0 && (
+        <div className="border p-4 rounded mt-4">
+          <h2 className="font-semibold mb-2">{t.team_invites || 'Team Invites'}</h2>
+          <table className="w-full text-sm border-collapse">
+            <thead><tr className="bg-gray-100">
+              <th className="border p-2 text-left">Club</th>
+              <th className="border p-2 text-left">Admin Email</th>
+              <th className="border p-2 w-24"></th>
+            </tr></thead>
+            <tbody>
+              {clubs.map(club => (
+                <tr key={club.id}>
+                  <td className="border p-2">{club.name}</td>
+                  <td className="border p-2">
+                    <input className="border p-1 rounded w-full" type="email"
+                      defaultValue={club.admin_email}
+                      onBlur={async e => {
+                        await api.put(`/clubs/${club.id}`, { admin_email: e.target.value })
+                      }}
+                      placeholder="coach@example.com" />
+                  </td>
+                  <td className="border p-2 text-center">
+                    <button className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700"
+                      onClick={async () => {
+                        if (!club.admin_email) { setMsg('Set email first'); return }
+                        const r = await api.post(`/clubs/${club.id}/send-pin`, { lang })
+                        setMsg(r.data.message || 'Email sent!')
+                        loadClubs()
+                      }}>
+                      Send PIN
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <footer className="mt-8 pt-4 border-t text-xs text-gray-400 text-center">
         Source : <a href="https://github.com/vrouleau/meetmanager-app" target="_blank" rel="noopener" className="underline">github.com/vrouleau/meetmanager-app</a>

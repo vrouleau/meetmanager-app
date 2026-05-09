@@ -12,7 +12,7 @@ from collections import defaultdict
 import time as _time
 
 from ..database import get_db
-from ..models import Club, Athlete, Event, Registration, BestTime, AppConfig, Gender
+from ..models import Club, Athlete, Event, Registration, BestTime, AppConfig, Gender, SecretLink
 from ..seed import seed_from_lxf
 from ..best_times import load_best_times
 from ..export import generate_lxf
@@ -101,7 +101,8 @@ async def upload_meet(file: UploadFile = File(...), db: Session = Depends(get_db
 
     # Track metadata
     for key, val in [("meet_filename", file.filename or "meet.lxf"),
-                     ("meet_uploaded_at", datetime.utcnow().isoformat())]:
+                     ("meet_uploaded_at", datetime.utcnow().isoformat()),
+                     ("meet_name", meet.meet_name)]:
         cfg = db.query(AppConfig).get(key)
         if cfg:
             cfg.value = val
@@ -115,9 +116,11 @@ async def upload_meet(file: UploadFile = File(...), db: Session = Depends(get_db
 def meet_info(db: Session = Depends(get_db)):
     filename = db.query(AppConfig).get("meet_filename")
     uploaded = db.query(AppConfig).get("meet_uploaded_at")
+    name = db.query(AppConfig).get("meet_name")
     return {
         "filename": filename.value if filename else None,
         "uploaded_at": uploaded.value if uploaded else None,
+        "meet_name": name.value if name else None,
         "events": db.query(Event).count(),
     }
 
@@ -125,7 +128,8 @@ def meet_info(db: Session = Depends(get_db)):
 def list_clubs(db: Session = Depends(get_db)):
     clubs = db.query(Club).order_by(Club.name).all()
     return [{"id": c.id, "name": c.name, "code": c.code,
-             "pin": c.pin, "athlete_count": len(c.athletes)} for c in clubs]
+             "pin": c.pin, "admin_email": c.admin_email or "",
+             "athlete_count": len(c.athletes)} for c in clubs]
 
 
 @router.post("/clubs")
@@ -160,6 +164,123 @@ def reset_club_pin(club_id: int, db: Session = Depends(get_db)):
     club.pin = f"{random.randint(100000, 999999)}"
     db.commit()
     return {"club": club.name, "pin": club.pin}
+
+
+@router.put("/clubs/{club_id}")
+def update_club(club_id: int, data: dict, db: Session = Depends(get_db)):
+    club = db.query(Club).get(club_id)
+    if not club:
+        raise HTTPException(404)
+    if "admin_email" in data:
+        club.admin_email = data["admin_email"]
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/clubs/{club_id}/send-pin")
+def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
+    """Create one-time secret link with PIN, send invite email via Resend."""
+    import uuid
+    from datetime import timedelta
+    from cryptography.fernet import Fernet
+    import httpx
+
+    club = db.query(Club).get(club_id)
+    if not club:
+        raise HTTPException(404)
+    if not club.admin_email:
+        raise HTTPException(400, "No admin email set for this club")
+
+    lang = data.get("lang", "fr")
+    resend_key = os.environ.get("RESEND_API_KEY")
+    if not resend_key:
+        raise HTTPException(500, "RESEND_API_KEY not configured")
+
+    # Encrypt PIN
+    fernet_key = os.environ.get("SECRET_KEY", "default-secret-key-change-me!!")
+    # Derive a valid Fernet key from the secret
+    import hashlib, base64
+    key = base64.urlsafe_b64encode(hashlib.sha256(fernet_key.encode()).digest())
+    f = Fernet(key)
+    pin_encrypted = f.encrypt(club.pin.encode()).decode()
+
+    # Create secret link
+    token = str(uuid.uuid4())
+    expires = datetime.utcnow() + timedelta(days=7)
+    link = SecretLink(token=token, club_id=club.id,
+                      pin_encrypted=pin_encrypted, expires_at=expires)
+    db.add(link)
+    db.commit()
+
+    # Build URL
+    base_url = os.environ.get("APP_BASE_URL", "http://localhost:8001")
+    secret_url = f"{base_url}/secret/{token}"
+
+    # Get meet name
+    meet_cfg = db.query(AppConfig).get("meet_name")
+    meet_name = meet_cfg.value if meet_cfg else "Meet"
+
+    # Email content
+    if lang == "fr":
+        subject = f"Invitation — {meet_name}"
+        html = (f"<p>Bonjour,</p>"
+                f"<p>Vous êtes invité(e) à inscrire votre équipe <strong>{club.name}</strong> "
+                f"pour <strong>{meet_name}</strong>.</p>"
+                f"<p>Votre NIP sécurisé (lien à usage unique, expire dans 7 jours) :</p>"
+                f"<p><a href=\"{secret_url}\">{secret_url}</a></p>"
+                f"<p>Portail d'inscription : <a href=\"{base_url}\">{base_url}</a></p>"
+                f"<p>Bonne compétition!</p>")
+    else:
+        subject = f"Invitation — {meet_name}"
+        html = (f"<p>Hello,</p>"
+                f"<p>You are invited to register your team <strong>{club.name}</strong> "
+                f"for <strong>{meet_name}</strong>.</p>"
+                f"<p>Your secure PIN (one-time link, expires in 7 days):</p>"
+                f"<p><a href=\"{secret_url}\">{secret_url}</a></p>"
+                f"<p>Registration portal: <a href=\"{base_url}\">{base_url}</a></p>"
+                f"<p>Good luck!</p>")
+
+    # Send via Resend
+    from_email = os.environ.get("RESEND_FROM_EMAIL", "noreply@example.com")
+    resp = httpx.post("https://api.resend.com/emails", json={
+        "from": from_email,
+        "to": [club.admin_email],
+        "subject": subject,
+        "html": html,
+    }, headers={"Authorization": f"Bearer {resend_key}"}, timeout=10)
+
+    if resp.status_code not in (200, 201):
+        raise HTTPException(502, f"Resend error: {resp.text}")
+
+    return {"message": f"Email sent to {club.admin_email}"}
+
+
+@router.get("/secret/{token}")
+def reveal_secret(token: str, db: Session = Depends(get_db)):
+    """One-time reveal of encrypted PIN."""
+    import hashlib, base64
+    from cryptography.fernet import Fernet
+
+    link = db.query(SecretLink).filter(SecretLink.token == token).first()
+    if not link:
+        raise HTTPException(404, "Link not found")
+    if link.viewed:
+        raise HTTPException(410, "This link has already been viewed")
+    if datetime.utcnow() > link.expires_at:
+        raise HTTPException(410, "This link has expired")
+
+    # Decrypt PIN
+    fernet_key = os.environ.get("SECRET_KEY", "default-secret-key-change-me!!")
+    key = base64.urlsafe_b64encode(hashlib.sha256(fernet_key.encode()).digest())
+    f = Fernet(key)
+    pin = f.decrypt(link.pin_encrypted.encode()).decode()
+
+    # Mark as viewed
+    link.viewed = True
+    db.commit()
+
+    club = db.query(Club).get(link.club_id)
+    return {"pin": pin, "club": club.name if club else ""}
 
 
 @router.get("/athletes")

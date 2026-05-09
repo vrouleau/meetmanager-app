@@ -7,6 +7,7 @@ import Login from './pages/Login'
 import Athletes from './pages/Athletes'
 import Register from './pages/Register'
 import Admin from './pages/Admin'
+import Secret from './pages/Secret'
 
 function AppInner() {
   const [auth, setAuth] = useState(null)
@@ -28,7 +29,14 @@ function AppInner() {
     setAuth(null)
   }
 
-  if (!auth) return <Login onLogin={setAuth} />
+  if (!auth) return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/secret/:token" element={<Secret />} />
+        <Route path="*" element={<Login onLogin={setAuth} />} />
+      </Routes>
+    </BrowserRouter>
+  )
 
   return (
     <BrowserRouter>
@@ -46,6 +54,7 @@ function AppInner() {
         <Route path="/" element={<Athletes role={auth.role} clubId={auth.club_id} />} />
         <Route path="/athletes/:id/register" element={<Register />} />
         {auth.role === 'admin' && <Route path="/admin" element={<Admin />} />}
+        <Route path="/secret/:token" element={<Secret />} />
       </Routes>
     </BrowserRouter>
   )

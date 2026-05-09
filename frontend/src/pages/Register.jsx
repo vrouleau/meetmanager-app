@@ -62,13 +62,17 @@ function TimeInput({ defaultValue, onSave }) {
 export default function Register() {
   const { id } = useParams()
   const [data, setData] = useState(null)
+  const [meetName, setMeetName] = useState('')
   const [saving, setSaving] = useState(false)
   const { t } = useLang()
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => { load(); loadMeet() }, [id])
 
   function load() {
     api.get(`/athletes/${id}/registration`).then(r => setData(r.data))
+  }
+  function loadMeet() {
+    api.get('/meet-info').then(r => setMeetName(r.data.meet_name || ''))
   }
 
   async function saveAthlete(field, value) {
@@ -106,6 +110,8 @@ export default function Register() {
   return (
     <div className="p-4 max-w-5xl mx-auto">
       <Link to="/" className="text-blue-600 hover:underline">&larr; {t.athletes}</Link>
+
+      {meetName && <h1 className="text-xl font-bold mt-2 mb-1">{meetName}</h1>}
 
       {/* Athlete Info */}
       <div className="mt-4 mb-6 p-4 border rounded bg-gray-50 grid grid-cols-2 md:grid-cols-4 gap-3">

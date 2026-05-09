@@ -58,6 +58,7 @@ class MeetSession:
 
 @dataclass
 class ParsedMeet:
+    meet_name: str = ""
     sessions: list[MeetSession] = field(default_factory=list)
 
     @property
@@ -104,6 +105,10 @@ def parse_meet_lxf(source) -> ParsedMeet:
 
     root = ET.fromstring(xml_bytes)
     meet = ParsedMeet()
+
+    meet_el = root.find(".//MEET")
+    if meet_el is not None:
+        meet.meet_name = meet_el.get("name", "")
 
     for session_el in root.iter("SESSION"):
         ses = MeetSession(

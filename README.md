@@ -1,5 +1,7 @@
 # Meet Manager App
 
+[![CI](https://github.com/vrouleau/meetmanager-app/actions/workflows/ci.yml/badge.svg)](https://github.com/vrouleau/meetmanager-app/actions/workflows/ci.yml)
+
 Web-based registration management for lifesaving competitions. Integrates with SPLASH Meet Manager via Lenex (.lxf) import/export.
 
 ## Features

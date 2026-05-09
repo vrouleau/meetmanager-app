@@ -13,7 +13,8 @@ import requests
 
 from conftest import (
     BASE_URL, MEET_TEMPLATE, ENTRIES_FILE, RESULTS_FILE,
-    get_registration, post_registration, delete_registration, export_lxf,
+    get_registration, post_registration, delete_registration,
+    export_bundle, export_lxf,
 )
 
 
@@ -222,6 +223,13 @@ class TestExport:
                 delete_registration(c["reg_id"], admin_headers)
             except Exception:
                 pass
+
+    def test_export_bundle_contains_scripts(self, with_registrations, admin_headers):
+        bundle = export_bundle(admin_headers)
+        names = set(bundle.namelist())
+        assert "inscriptions.lxf" in names
+        assert "simulate_results.vbs" in names
+        assert "simulate_results.bat" in names
 
     def test_export_returns_valid_lxf_zip(self, with_registrations, admin_headers):
         lxf = export_lxf(admin_headers)

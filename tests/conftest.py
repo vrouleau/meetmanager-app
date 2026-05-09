@@ -170,7 +170,15 @@ def delete_registration(reg_id: int, headers: dict) -> None:
     r.raise_for_status()
 
 
-def export_lxf(headers: dict) -> zipfile.ZipFile:
+def export_bundle(headers: dict) -> zipfile.ZipFile:
+    """Return the outer zip returned by /api/export (lxf + helper scripts)."""
     r = requests.get(f"{BASE_URL}/api/export", headers=headers, timeout=30)
     r.raise_for_status()
     return zipfile.ZipFile(BytesIO(r.content))
+
+
+def export_lxf(headers: dict) -> zipfile.ZipFile:
+    """Return the inner inscriptions.lxf (Lenex zip) extracted from the bundle."""
+    bundle = export_bundle(headers)
+    inner = bundle.read("inscriptions.lxf")
+    return zipfile.ZipFile(BytesIO(inner))

@@ -601,11 +601,27 @@ def change_admin_pin(data: dict, db: Session = Depends(get_db)):
 
 @router.get("/export")
 def export_lenex(db: Session = Depends(get_db)):
-    """Generate and download Lenex .lxf."""
+    """Download a zip bundling the registrations .lxf with the simulate-results
+    helper scripts so coaches can exercise SPLASH end-to-end without manually
+    seeding swim times.
+    """
+    import zipfile
+    from io import BytesIO
     from fastapi.responses import Response
+
     lxf_bytes = generate_lxf(db)
+    scripts_dir = Path(__file__).resolve().parent.parent.parent / "scripts"
+
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("inscriptions.lxf", lxf_bytes)
+        for name in ("simulate_results.vbs", "simulate_results.bat"):
+            p = scripts_dir / name
+            if p.exists():
+                z.writestr(name, p.read_bytes())
+
     return Response(
-        content=lxf_bytes,
+        content=buf.getvalue(),
         media_type="application/zip",
-        headers={"Content-Disposition": "attachment; filename=inscriptions.lxf"},
+        headers={"Content-Disposition": "attachment; filename=inscriptions_bundle.zip"},
     )

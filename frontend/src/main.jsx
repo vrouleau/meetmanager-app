@@ -11,6 +11,7 @@ import Secret from './pages/Secret'
 
 function AppInner() {
   const [auth, setAuth] = useState(null)
+  const [meetName, setMeetName] = useState('')
   const { t, lang, toggle } = useLang()
 
   useEffect(() => {
@@ -19,6 +20,7 @@ function AppInner() {
     if (pin && role) {
       setAuth({ role, club_id: localStorage.getItem('club_id'), club_name: localStorage.getItem('club_name') })
     }
+    import('./api').then(m => m.default.get('/meet-info').then(r => setMeetName(r.data.meet_name || '')).catch(() => {}))
   }, [])
 
   function logout() {
@@ -41,6 +43,7 @@ function AppInner() {
   return (
     <BrowserRouter>
       <nav className="bg-gray-800 text-white p-3 flex gap-4 items-center">
+        {meetName && <span className="font-semibold">{meetName}</span>}
         <Link to="/" className="hover:underline">{t.athletes}</Link>
         {auth.role === 'admin' && <Link to="/admin" className="hover:underline">{t.admin}</Link>}
         <div className="flex-1" />

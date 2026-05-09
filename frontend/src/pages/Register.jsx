@@ -101,7 +101,8 @@ export default function Register() {
 
   if (!data) return <div className="p-4">Loading...</div>
 
-  const { athlete, individual_events, relay_events, club_athletes, suggested_age_code } = data
+  const { athlete, individual_events, relay_events, club_athletes, suggested_age_code, meet_course } = data
+  const bestKey = meet_course === 'SCM' ? 'best_time_scm_ms' : 'best_time_lcm_ms'
 
   return (
     <div className="p-4 max-w-5xl mx-auto">
@@ -157,7 +158,7 @@ export default function Register() {
         <tbody>
           {individual_events.map(style => {
             const reg = style.categories.find(c => c.registered)
-            const bestMs = style.best_time_lcm_ms || style.best_time_scm_ms
+            const bestMs = style[bestKey]
             return (
               <tr key={style.style_uid} className={reg ? 'bg-green-50' : ''}>
                 <td className="border p-2 text-center">

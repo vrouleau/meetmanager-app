@@ -446,6 +446,9 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
         elif age >= 25:
             suggested_age_code = "Masters"
 
+    meet_course_cfg = db.query(AppConfig).get("meet_course")
+    meet_course = meet_course_cfg.value if meet_course_cfg else "LCM"
+
     return {
         "athlete": {
             "id": athlete.id, "first_name": athlete.first_name,
@@ -455,6 +458,7 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
             "club": athlete.club.name, "club_id": athlete.club_id,
         },
         "suggested_age_code": suggested_age_code,
+        "meet_course": meet_course,
         "individual_events": individual_events,
         "relay_events": relay_events,
         "club_athletes": [{"id": a.id, "name": f"{a.last_name}, {a.first_name}"}

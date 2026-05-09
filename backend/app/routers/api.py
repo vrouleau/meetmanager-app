@@ -12,7 +12,7 @@ from collections import defaultdict
 import time as _time
 
 from ..database import get_db
-from ..models import Club, Athlete, Event, Registration, BestTime, AppConfig, Gender, SecretLink
+from ..models import Club, Athlete, Event, AgeGroup, Registration, BestTime, AppConfig, Gender, SecretLink
 from ..seed import seed_from_lxf
 from ..best_times import load_best_times
 from ..export import generate_lxf
@@ -26,6 +26,23 @@ _DEFAULT_ADMIN_PIN = os.environ.get("ADMIN_PIN", "000000")
 def _get_admin_pin(db: Session) -> str:
     cfg = db.query(AppConfig).get("admin_pin")
     return cfg.value if cfg else _DEFAULT_ADMIN_PIN
+
+
+_AGE_CODE_ORDER = ("10-", "11-12", "13-14", "15-18", "Open", "Masters")
+
+
+def _age_group_code(age_min: int, age_max: int) -> str | None:
+    if age_min <= 10 and age_max == 10:
+        return "10-"
+    if age_min == 11 and age_max == 12:
+        return "11-12"
+    if age_min == 13 and age_max == 14:
+        return "13-14"
+    if age_min == 15 and age_max == 18:
+        return "15-18"
+    if age_min == 19 and age_max == -1:
+        return "Open"
+    return None
 
 # Rate limiting: max 5 attempts per IP per 60 seconds
 _auth_attempts: dict[str, list[float]] = defaultdict(list)
@@ -365,27 +382,32 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
         else:
             best_map_lcm[b.style_uid] = b.time_ms
 
-    events = db.query(Event).order_by(Event.event_number).all()
+    events = db.query(Event).options(joinedload(Event.age_groups)).order_by(Event.event_number).all()
 
-    # Filter events by athlete gender (individual only)
     ath_gender_int = 1 if athlete.gender.value == "M" else 2
 
-    # Build style groups with fixed categories: 15-18, Open, Masters
-    # Each style has a prelim event (non-masters) and optionally a masters event
-    from collections import defaultdict
+    # Build style groups; categories come from each event's age groups (or "Masters").
+    # An event_id is referenced once per (style, age_code) — first event wins on duplicates
+    # (e.g., a style with both PRE and TIM rounds for the same age group).
     styles: dict[int, dict] = {}
-    event_lookup: dict[tuple, int] = {}  # (style_uid, masters) -> event_id
 
     for ev in events:
-        if ev.round == 9:
+        if ev.round == 9:  # skip finals
             continue
-        if not ev.masters and ev.round != 2:
+        # Individual-event gender filter; gender=0 means "all" (e.g., 10-and-under combined)
+        if ev.relay_count == 1 and ev.gender != 0 and ev.gender != ath_gender_int:
             continue
-        if ev.relay_count == 1 and ev.gender != ath_gender_int:
+
+        if ev.masters:
+            event_codes = ["Masters"]
+        else:
+            event_codes = []
+            for ag in ev.age_groups:
+                code = _age_group_code(ag.age_min, ag.age_max)
+                if code and code not in event_codes:
+                    event_codes.append(code)
+        if not event_codes:
             continue
-        # For relays (gender=3/mixed), include all
-        if (ev.style_uid, ev.masters) not in event_lookup:
-            event_lookup[(ev.style_uid, ev.masters)] = ev.id
 
         if ev.style_uid not in styles:
             styles[ev.style_uid] = {
@@ -395,35 +417,24 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
                 "relay_count": ev.relay_count,
                 "categories": [],
             }
+        style = styles[ev.style_uid]
 
-    meet_masters_cfg = db.query(AppConfig).get("meet_masters")
-    meet_has_masters = meet_masters_cfg and meet_masters_cfg.value == "T"
-
-    # Build categories for each style
-    for uid, style in styles.items():
-        prelim_eid = event_lookup.get((uid, False))
-        masters_eid = event_lookup.get((uid, True)) if meet_has_masters else None
-
-        # Fixed categories: 15-18, Open (both use prelim event), Masters (uses masters event)
-        if prelim_eid:
-            for age_code in ("15-18", "Open"):
-                reg = next((r for r in regs if r.event_id == prelim_eid and r.age_code == age_code), None)
-                style["categories"].append({
-                    "event_id": prelim_eid,
-                    "age_code": age_code,
-                    "registered": reg is not None,
-                    "registration_id": reg.id if reg else None,
-                    "entry_time_ms": reg.entry_time_ms if reg else None,
-                })
-        if masters_eid:
-            reg = next((r for r in regs if r.event_id == masters_eid and r.age_code == "Masters"), None)
+        for code in event_codes:
+            if any(c["age_code"] == code for c in style["categories"]):
+                continue
+            reg = next((r for r in regs if r.event_id == ev.id and r.age_code == code), None)
             style["categories"].append({
-                "event_id": masters_eid,
-                "age_code": "Masters",
+                "event_id": ev.id,
+                "age_code": code,
                 "registered": reg is not None,
                 "registration_id": reg.id if reg else None,
                 "entry_time_ms": reg.entry_time_ms if reg else None,
             })
+
+    # Sort each style's categories by canonical order
+    order_idx = {c: i for i, c in enumerate(_AGE_CODE_ORDER)}
+    for s in styles.values():
+        s["categories"].sort(key=lambda c: order_idx.get(c["age_code"], 99))
 
     individual_events = [s for s in styles.values() if s["relay_count"] == 1]
     relay_events = [s for s in styles.values() if s["relay_count"] > 1]
@@ -440,14 +451,19 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
     ).order_by(Athlete.last_name).all()
 
     # Determine suggested age_code from athlete DOB
+    # Masters is never auto-suggested — coach selects it manually if applicable
     suggested_age_code = "Open"
     if athlete.birthdate:
         from datetime import date as d
         age = d(2026, 12, 31).year - athlete.birthdate.year
-        if 15 <= age <= 18:
+        if age <= 10:
+            suggested_age_code = "10-"
+        elif 11 <= age <= 12:
+            suggested_age_code = "11-12"
+        elif 13 <= age <= 14:
+            suggested_age_code = "13-14"
+        elif 15 <= age <= 18:
             suggested_age_code = "15-18"
-        elif age >= 25 and meet_has_masters:
-            suggested_age_code = "Masters"
 
     meet_course_cfg = db.query(AppConfig).get("meet_course")
     meet_course = meet_course_cfg.value if meet_course_cfg else "LCM"

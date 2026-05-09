@@ -52,21 +52,32 @@ class Athlete(Base):
 class Event(Base):
     __tablename__ = "events"
     id = Column(Integer, primary_key=True)
+    splash_event_id = Column(Integer, unique=True, nullable=False)
     style_uid = Column(Integer, nullable=False)
     style_name = Column(String(100))
     distance = Column(Integer)
     relay_count = Column(Integer, default=1)
-    gender = Column(Integer)  # 1=M, 2=F, 3=Mixed
+    gender = Column(Integer)  # 1=M, 2=F, 3=Mixed/Open
     event_number = Column(Integer)
-    round = Column(Integer)  # 1=final, 2=prelim
+    round = Column(Integer)  # 1=TIM (time-trial), 2=PRE (prelim), 9=FIN (final)
     masters = Column(Boolean, default=False)
     session_id = Column(Integer)
 
+    age_groups = relationship("AgeGroup", back_populates="event",
+                              cascade="all, delete-orphan")
     registrations = relationship("Registration", back_populates="event")
 
-    __table_args__ = (
-        UniqueConstraint("style_uid", "gender", "masters", "round", name="uq_event"),
-    )
+
+class AgeGroup(Base):
+    __tablename__ = "age_groups"
+    id = Column(Integer, primary_key=True)
+    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"),
+                      nullable=False)
+    splash_agegroup_id = Column(Integer, nullable=False)
+    age_min = Column(Integer, nullable=False)
+    age_max = Column(Integer, nullable=False)  # -1 = no upper bound
+
+    event = relationship("Event", back_populates="age_groups")
 
 
 class Registration(Base):

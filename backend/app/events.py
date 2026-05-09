@@ -1,18 +1,19 @@
-"""Load events from meet .lxf into the Event table."""
+"""Load events from meet .lxf into the Event + AgeGroup tables."""
 from __future__ import annotations
 
 from pathlib import Path
 
 from sqlalchemy.orm import Session
-from .models import Event
+from .models import Event, AgeGroup
 from .meet_parser import parse_meet_lxf, ParsedMeet
 
 
 def _load_from_parsed(db: Session, meet: ParsedMeet) -> int:
-    """Insert events from a parsed meet. Returns count."""
+    """Insert events + age groups from a parsed meet. Returns event count."""
     count = 0
     for ev in meet.all_events:
         event = Event(
+            splash_event_id=ev.eventid,
             style_uid=ev.swimstyleid,
             style_name=ev.style_name or f"UID {ev.swimstyleid}",
             distance=ev.distance,
@@ -24,6 +25,14 @@ def _load_from_parsed(db: Session, meet: ParsedMeet) -> int:
             session_id=None,
         )
         db.add(event)
+        db.flush()
+        for ag in ev.agegroups:
+            db.add(AgeGroup(
+                event_id=event.id,
+                splash_agegroup_id=ag.agegroupid,
+                age_min=ag.agemin,
+                age_max=ag.agemax,
+            ))
         count += 1
     db.commit()
     return count

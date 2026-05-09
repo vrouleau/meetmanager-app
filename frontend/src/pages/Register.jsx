@@ -21,6 +21,8 @@ function parseTime(str) {
   return undefined
 }
 
+const AGE_CODE_ORDER = ['10-', '11-12', '13-14', '15-18', 'Open', 'Masters']
+
 function TimeInput({ defaultValue, onSave }) {
   const [value, setValue] = useState(defaultValue || '')
   const [error, setError] = useState(false)
@@ -63,9 +65,18 @@ export default function Register() {
   const { id } = useParams()
   const [data, setData] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [category, setCategory] = useState(null)
   const { t } = useLang()
 
   useEffect(() => { load() }, [id])
+
+  useEffect(() => {
+    if (!data || category !== null) return
+    const regs = [...data.individual_events, ...data.relay_events]
+      .map(s => s.categories.find(c => c.registered))
+      .filter(Boolean)
+    setCategory(regs[0]?.age_code || data.suggested_age_code)
+  }, [data])
 
   function load() {
     api.get(`/athletes/${id}/registration`).then(r => setData(r.data))
@@ -90,19 +101,67 @@ export default function Register() {
     setSaving(false)
   }
 
-  async function updateTime(regId, value) {
-    const ms = parseTime(value)
-    if (ms === undefined) { alert("Format: M:SS.cc"); return }
-    await api.post('/registrations', { athlete_id: parseInt(id), event_id: 0, entry_time_ms: ms })
-    // Actually need to update existing - use PUT or re-register
-    // For now, find the event_id from the registration and re-post
-    load()
+  async function changeCategory(newCategory) {
+    if (newCategory === category) return
+    setSaving(true)
+    const allStyles = [...data.individual_events, ...data.relay_events]
+    for (const style of allStyles) {
+      const reg = style.categories.find(c => c.registered)
+      if (!reg) continue
+      const newCat = style.categories.find(c => c.age_code === newCategory)
+      if (!newCat) {
+        await api.delete(`/registrations/${reg.registration_id}`)
+        continue
+      }
+      if (newCat.event_id === reg.event_id && newCat.age_code === reg.age_code) continue
+      await api.delete(`/registrations/${reg.registration_id}`)
+      await api.post('/registrations', {
+        athlete_id: parseInt(id),
+        event_id: newCat.event_id,
+        age_code: newCat.age_code,
+        entry_time_ms: reg.entry_time_ms,
+      })
+    }
+    setCategory(newCategory)
+    await load()
+    setSaving(false)
   }
 
   if (!data) return <div className="p-4">Loading...</div>
 
   const { athlete, individual_events, relay_events, club_athletes, suggested_age_code, meet_course } = data
   const bestKey = meet_course === 'SCM' ? 'best_time_scm_ms' : 'best_time_lcm_ms'
+  const activeCategory = category || suggested_age_code
+
+  const availableCategories = (() => {
+    const set = new Set()
+    for (const style of [...individual_events, ...relay_events]) {
+      for (const c of style.categories) set.add(c.age_code)
+    }
+    return AGE_CODE_ORDER.filter(c => set.has(c))
+  })()
+
+  // Restrict the dropdown to ±1 step around the athlete's natural category.
+  // The currently-selected category is always included so existing state isn't hidden.
+  const dropdownCategories = (() => {
+    const naturalIdx = AGE_CODE_ORDER.indexOf(suggested_age_code)
+    if (naturalIdx < 0) return availableCategories
+    const allowed = new Set()
+    for (let i = Math.max(0, naturalIdx - 1); i <= Math.min(AGE_CODE_ORDER.length - 1, naturalIdx + 1); i++) {
+      allowed.add(AGE_CODE_ORDER[i])
+    }
+    if (activeCategory) allowed.add(activeCategory)
+    return availableCategories.filter(c => allowed.has(c))
+  })()
+
+  // Hide events that have no category reachable by this athlete.
+  const allowedSet = new Set(dropdownCategories)
+  const visibleIndividual = individual_events.filter(s =>
+    s.categories.some(c => allowedSet.has(c.age_code))
+  )
+  const visibleRelays = relay_events.filter(s =>
+    s.categories.some(c => allowedSet.has(c.age_code))
+  )
 
   return (
     <div className="p-4 max-w-5xl mx-auto">
@@ -144,47 +203,47 @@ export default function Register() {
         </div>
       </div>
 
+      {/* Global Category */}
+      <div className="mb-4 flex items-center gap-3">
+        <label className="font-medium">{t.category}:</label>
+        <select className="border p-1 rounded"
+          value={activeCategory}
+          disabled={saving}
+          onChange={e => changeCategory(e.target.value)}>
+          {dropdownCategories.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+
       {/* Individual Events */}
       <h2 className="text-lg font-semibold mb-2">{t.individual_events}</h2>
       <table className="w-full border-collapse text-sm mb-6">
         <thead><tr className="bg-gray-100">
           <th className="border p-2 w-8">✓</th>
           <th className="border p-2 text-left">{t.event}</th>
-          <th className="border p-2 text-left">{t.category}</th>
           <th className="border p-2 text-left">{t.bt_50}</th>
           <th className="border p-2 text-left">{t.bt_25}</th>
           <th className="border p-2 text-left">{t.entry_time}</th>
         </tr></thead>
         <tbody>
-          {individual_events.map(style => {
+          {visibleIndividual.map(style => {
             const reg = style.categories.find(c => c.registered)
             const bestMs = style[bestKey]
+            const catAvailable = style.categories.some(c => c.age_code === activeCategory)
             return (
               <tr key={style.style_uid} className={reg ? 'bg-green-50' : ''}>
                 <td className="border p-2 text-center">
-                  <input type="checkbox" checked={!!reg} disabled={saving}
+                  <input type="checkbox" checked={!!reg} disabled={saving || (!reg && !catAvailable)}
                     onChange={() => {
                       if (reg) unregister(reg.registration_id)
                       else {
-                        const cat = style.categories.find(c => c.age_code === suggested_age_code) || style.categories[0]
+                        const cat = style.categories.find(c => c.age_code === activeCategory) || style.categories[0]
                         registerEvent(cat.event_id, bestMs, cat.age_code)
                       }
                     }} />
                 </td>
                 <td className="border p-2">{style.style_name}</td>
-                <td className="border p-2">
-                  <select className="border p-1 rounded text-xs"
-                    value={reg ? reg.age_code : suggested_age_code}
-                    onChange={async e => {
-                      const cat = style.categories.find(c => c.age_code === e.target.value)
-                      if (reg) await unregister(reg.registration_id)
-                      await registerEvent(cat.event_id, bestMs, cat.age_code)
-                    }}>
-                    {style.categories.map(c => (
-                      <option key={c.age_code} value={c.age_code}>{c.age_code}</option>
-                    ))}
-                  </select>
-                </td>
                 <td className="border p-2 text-gray-500">{msToTime(style.best_time_lcm_ms)}</td>
                 <td className="border p-2 text-gray-500">{msToTime(style.best_time_scm_ms)}</td>
                 <td className="border p-2">
@@ -209,47 +268,34 @@ export default function Register() {
       </table>
 
       {/* Relay Events */}
-      {relay_events.length > 0 && (
+      {visibleRelays.length > 0 && (
         <>
           <h2 className="text-lg font-semibold mb-2">{t.relays}</h2>
           <table className="w-full border-collapse text-sm">
             <thead><tr className="bg-gray-100">
               <th className="border p-2 w-8">✓</th>
               <th className="border p-2 text-left">{t.event}</th>
-              <th className="border p-2 text-left">{t.category}</th>
               <th className="border p-2 text-left">{t.entry_time}</th>
               <th className="border p-2 text-left">{t.teammates}</th>
             </tr></thead>
             <tbody>
-              {relay_events.map(style => {
+              {visibleRelays.map(style => {
                 const reg = style.categories.find(c => c.registered)
                 const teammateCount = style.relay_count - 1
+                const catAvailable = style.categories.some(c => c.age_code === activeCategory)
                 return (
                   <tr key={style.style_uid} className={reg ? 'bg-green-50' : ''}>
                     <td className="border p-2 text-center">
-                      <input type="checkbox" checked={!!reg} disabled={saving}
+                      <input type="checkbox" checked={!!reg} disabled={saving || (!reg && !catAvailable)}
                         onChange={() => {
                           if (reg) unregister(reg.registration_id)
                           else {
-                            const cat = style.categories.find(c => c.age_code === suggested_age_code) || style.categories[0]
+                            const cat = style.categories.find(c => c.age_code === activeCategory) || style.categories[0]
                             registerEvent(cat.event_id, null, cat.age_code)
                           }
                         }} />
                     </td>
                     <td className="border p-2">{style.style_name} ({style.relay_count}x)</td>
-                    <td className="border p-2">
-                      <select className="border p-1 rounded text-xs"
-                        value={reg ? reg.age_code : suggested_age_code}
-                        onChange={async e => {
-                          const cat = style.categories.find(c => c.age_code === e.target.value)
-                          if (reg) await unregister(reg.registration_id)
-                          await registerEvent(cat.event_id, null, cat.age_code)
-                        }}>
-                        {style.categories.map(c => (
-                          <option key={c.age_code} value={c.age_code}>{c.age_code}</option>
-                        ))}
-                      </select>
-                    </td>
                     <td className="border p-2">
                       {reg && (
                         <TimeInput defaultValue={msToTime(reg.entry_time_ms)}

@@ -1,13 +1,15 @@
 """Generate Lenex .lxf from registrations."""
 from __future__ import annotations
 
+import os
 import zipfile
 from datetime import date
 from io import BytesIO
+from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from sqlalchemy.orm import Session, joinedload
-from .models import Club, Athlete, Event, Registration
+from .models import Club, Athlete, Event, AgeGroup, Registration
 
 
 def _ms_to_lenex(ms: int | None) -> str:
@@ -22,39 +24,33 @@ def _ms_to_lenex(ms: int | None) -> str:
     return f"{m:02d}:{s:02d}.{cs:02d}"
 
 
-def _gender_str(g: int) -> str:
-    return {1: "M", 2: "F", 3: "X"}.get(g, "A")
+def _agegroup_for_code(age_groups, age_code: str, masters: bool):
+    """Pick the AgeGroup row matching the registration's age_code."""
+    if masters:
+        return age_groups[0] if age_groups else None
+    for ag in age_groups:
+        if age_code == "10-" and ag.age_max == 10:
+            return ag
+        if age_code == "11-12" and ag.age_min == 11 and ag.age_max == 12:
+            return ag
+        if age_code == "13-14" and ag.age_min == 13 and ag.age_max == 14:
+            return ag
+        if age_code == "15-18" and ag.age_min == 15 and ag.age_max == 18:
+            return ag
+        if age_code == "Open" and ag.age_min == 19 and ag.age_max == -1:
+            return ag
+    return None
 
 
 def generate_lxf(db: Session) -> bytes:
     """Generate a Lenex 3.0 .lxf zip from all registrations."""
-    import json, os
-    from pathlib import Path
-
-    # Load meet structure for SPLASH event IDs
     from .meet_parser import parse_meet_lxf
     meet_path = Path(os.environ.get("MEET_STORAGE", "/app/data/meet.lxf"))
     meet_struct = parse_meet_lxf(meet_path)
 
-    # Map: our DB event -> SPLASH eventid
-    # Match by style_uid + gender + masters + round
-    db_events = db.query(Event).all()
-    db_to_splash_eid: dict[int, int] = {}
-    for db_ev in db_events:
-        gender_str = {1: "M", 2: "F", 3: "X"}.get(db_ev.gender, "")
-        for m_ev in meet_struct.all_events:
-            if (m_ev.swimstyleid == db_ev.style_uid and
-                m_ev.gender == gender_str and
-                m_ev.is_masters == db_ev.masters and
-                ((db_ev.round == 2 and m_ev.is_prelim) or
-                 (db_ev.round == 1 and m_ev.round == "TIM") or
-                 (db_ev.round == 9 and m_ev.round == "FIN"))):
-                db_to_splash_eid[db_ev.id] = m_ev.eventid
-                break
-
     regs = db.query(Registration).options(
         joinedload(Registration.athlete).joinedload(Athlete.club),
-        joinedload(Registration.event),
+        joinedload(Registration.event).joinedload(Event.age_groups),
     ).all()
 
     # Group by club -> athlete -> entries
@@ -62,27 +58,27 @@ def generate_lxf(db: Session) -> bytes:
     for reg in regs:
         ath = reg.athlete
         club = ath.club
-        if club.id not in clubs_map:
-            clubs_map[club.id] = {"club": club, "athletes": {}}
-        if ath.id not in clubs_map[club.id]["athletes"]:
-            clubs_map[club.id]["athletes"][ath.id] = {"athlete": ath, "entries": []}
+        clubs_map.setdefault(club.id, {"club": club, "athletes": {}})
+        clubs_map[club.id]["athletes"].setdefault(ath.id, {"athlete": ath, "entries": []})
         clubs_map[club.id]["athletes"][ath.id]["entries"].append(reg)
 
     # Build XML
     root = ET.Element("LENEX", version="3.0")
     meets = ET.SubElement(root, "MEETS")
     meet = ET.SubElement(meets, "MEET", {
-        "name": "Inscription Export",
+        "name": meet_struct.meet_name or "Inscription Export",
         "city": "Laval",
-        "course": "LCM",
+        "course": meet_struct.course or "LCM",
     })
     ET.SubElement(meet, "AGEDATE", value=date(2026, 12, 31).isoformat(), type="DATE")
 
-    # Sessions + Events from meet structure
+    # Sessions + Events from meet structure (preserves original session/event ids + age groups)
     sessions_xml = ET.SubElement(meet, "SESSIONS")
     for ses in meet_struct.sessions:
         ses_xml = ET.SubElement(sessions_xml, "SESSION", {
-            "number": str(ses.number), "date": "2026-12-31", "course": "LCM",
+            "number": str(ses.number),
+            "date": "2026-12-31",
+            "course": meet_struct.course or "LCM",
         })
         evts_xml = ET.SubElement(ses_xml, "EVENTS")
         for m_ev in ses.events:
@@ -97,9 +93,16 @@ def generate_lxf(db: Session) -> bytes:
                 "distance": str(m_ev.distance),
                 "relaycount": str(m_ev.relaycount),
             })
+            if m_ev.agegroups:
+                ags_xml = ET.SubElement(ev_xml, "AGEGROUPS")
+                for ag in m_ev.agegroups:
+                    ET.SubElement(ags_xml, "AGEGROUP", {
+                        "agegroupid": str(ag.agegroupid),
+                        "agemin": str(ag.agemin),
+                        "agemax": str(ag.agemax),
+                    })
 
     clubs_xml = ET.SubElement(meet, "CLUBS")
-    athlete_counter = 1
 
     for club_data in clubs_map.values():
         club = club_data["club"]
@@ -123,13 +126,16 @@ def generate_lxf(db: Session) -> bytes:
             })
             entries_xml = ET.SubElement(ath_xml, "ENTRIES")
             for reg in ath_data["entries"]:
-                splash_eid = db_to_splash_eid.get(reg.event_id)
-                if not splash_eid:
+                ev = reg.event
+                if not ev or not ev.splash_event_id:
                     continue
                 entry_attrs = {
-                    "eventid": str(splash_eid),
-                    "entrycourse": "LCM",
+                    "eventid": str(ev.splash_event_id),
+                    "entrycourse": meet_struct.course or "LCM",
                 }
+                ag = _agegroup_for_code(ev.age_groups, reg.age_code, ev.masters)
+                if ag:
+                    entry_attrs["agegroupid"] = str(ag.splash_agegroup_id)
                 if reg.entry_time_ms:
                     entry_attrs["entrytime"] = _ms_to_lenex(reg.entry_time_ms)
                 ET.SubElement(entries_xml, "ENTRY", entry_attrs)

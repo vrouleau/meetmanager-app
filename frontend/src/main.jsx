@@ -43,7 +43,7 @@ function AppInner() {
   return (
     <BrowserRouter>
       <nav className="bg-gray-800 text-white p-3 flex gap-4 items-center">
-        {meetName && <span className="font-semibold">{meetName}</span>}
+        {meetName && <span className="font-semibold bg-blue-600 px-2 py-1 rounded">{meetName}</span>}
         <Link to="/" className="hover:underline">{t.athletes}</Link>
         {auth.role === 'admin' && <Link to="/admin" className="hover:underline">{t.admin}</Link>}
         <div className="flex-1" />

@@ -111,17 +111,17 @@ export default function Register() {
       {/* Athlete Info */}
       <div className="mt-4 mb-6 p-4 border rounded bg-gray-50 grid grid-cols-2 md:grid-cols-4 gap-3">
         <div>
-          <label className="text-xs text-gray-500">First Name</label>
+          <label className="text-xs text-gray-500">{t.first_name}</label>
           <input className="border p-1 rounded w-full" defaultValue={athlete.first_name}
                  onBlur={e => saveAthlete('first_name', e.target.value)} />
         </div>
         <div>
-          <label className="text-xs text-gray-500">Last Name</label>
+          <label className="text-xs text-gray-500">{t.last_name}</label>
           <input className="border p-1 rounded w-full" defaultValue={athlete.last_name}
                  onBlur={e => saveAthlete('last_name', e.target.value)} />
         </div>
         <div>
-          <label className="text-xs text-gray-500">Gender</label>
+          <label className="text-xs text-gray-500">{t.gender}</label>
           <select className="border p-1 rounded w-full" defaultValue={athlete.gender}
                   onChange={e => saveAthlete('gender', e.target.value)}>
             <option value="M">M</option>
@@ -129,17 +129,17 @@ export default function Register() {
           </select>
         </div>
         <div>
-          <label className="text-xs text-gray-500">DOB</label>
+          <label className="text-xs text-gray-500">{t.dob}</label>
           <input type="date" className="border p-1 rounded w-full" defaultValue={athlete.birthdate}
                  onBlur={e => saveAthlete('birthdate', e.target.value)} />
         </div>
         <div>
-          <label className="text-xs text-gray-500">NRAN</label>
+          <label className="text-xs text-gray-500">{t.nran}</label>
           <input className="border p-1 rounded w-full" defaultValue={athlete.license}
                  onBlur={e => saveAthlete('license', e.target.value)} />
         </div>
         <div className="col-span-2">
-          <label className="text-xs text-gray-500">Club</label>
+          <label className="text-xs text-gray-500">{t.club}</label>
           <input className="border p-1 rounded w-full bg-gray-100" value={athlete.club} readOnly />
         </div>
       </div>

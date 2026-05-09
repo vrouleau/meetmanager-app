@@ -446,7 +446,7 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
         age = d(2026, 12, 31).year - athlete.birthdate.year
         if 15 <= age <= 18:
             suggested_age_code = "15-18"
-        elif age >= 25:
+        elif age >= 25 and meet_has_masters:
             suggested_age_code = "Masters"
 
     meet_course_cfg = db.query(AppConfig).get("meet_course")

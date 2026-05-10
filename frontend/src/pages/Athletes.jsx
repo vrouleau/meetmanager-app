@@ -87,7 +87,11 @@ export default function Athletes({ role, clubId }) {
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">{t.athletes}</h1>
+      <h1 className="text-2xl font-bold mb-4">
+        {!isAdmin && clubs.find(c => String(c.id) === clubFilter)?.name
+          ? `${clubs.find(c => String(c.id) === clubFilter).name} — ${t.athletes}`
+          : t.athletes}
+      </h1>
 
       {/* Club selector */}
       <div className="flex gap-2 mb-4 items-center">

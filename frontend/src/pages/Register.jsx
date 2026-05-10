@@ -32,12 +32,13 @@ function TimeInput({ defaultValue, onSave }) {
     let s = str.trim()
     // Already formatted
     if (/^\d+:\d{2}\.\d{2}$/.test(s) || /^\d+\.\d{2}$/.test(s)) return s
-    // Raw digits: 3045 -> 30.45, 12367 -> 1:23.67, 10000 -> 1:00.00
+    // Raw digits: positional M?SSCC -> 3045=30.45, 14500=1:45.00, 10000=1:00.00
     if (/^\d{3,6}$/.test(s)) {
-      const n = parseInt(s)
-      const cs = n % 100
-      const sec = Math.floor(n / 100) % 60
-      const min = Math.floor(n / 6000)
+      const padded = s.padStart(6, '0')
+      const min = parseInt(padded.slice(0, -4)) || 0
+      const sec = parseInt(padded.slice(-4, -2))
+      const cs = parseInt(padded.slice(-2))
+      if (sec >= 60 || cs >= 100) return null
       if (min > 0) return `${min}:${sec.toString().padStart(2, '0')}.${cs.toString().padStart(2, '0')}`
       return `${sec}.${cs.toString().padStart(2, '0')}`
     }

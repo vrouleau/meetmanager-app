@@ -18,7 +18,11 @@ const api = {
       headers: isFormData ? headers() : headers({ 'Content-Type': 'application/json' }),
       body: isFormData ? body : JSON.stringify(body),
     })
-    if (!res.ok) throw new Error(`${res.status}`)
+    if (!res.ok) {
+      const err = new Error(`${res.status}`)
+      try { err.detail = (await res.json()).detail } catch {}
+      throw err
+    }
     return { data: await res.json() }
   },
   async delete(path) {

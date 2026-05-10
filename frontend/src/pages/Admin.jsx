@@ -194,7 +194,7 @@ export default function Admin() {
                           const r = await api.post(`/clubs/${club.id}/send-pin`, { lang })
                           setMsg(r.data.message || 'Email sent!')
                         } catch (e) {
-                          setMsg(e.response?.data?.detail || 'Error sending email')
+                          setMsg(e.detail || e.message || 'Error sending email')
                         }
                         loadClubs()
                       }}>

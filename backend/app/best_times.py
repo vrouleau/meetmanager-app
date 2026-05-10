@@ -41,7 +41,6 @@ def _find_or_create_athlete(db: Session, first: str, last: str, license: str, cl
         return ath
     if not club:
         return None
-    from .models import Gender
     ath = Athlete(first_name=first, last_name=last, gender=Gender.M, club_id=club.id, license=license)
     db.add(ath)
     db.flush()

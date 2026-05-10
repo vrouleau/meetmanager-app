@@ -1,7 +1,7 @@
 """SQLAlchemy models for Meet Manager."""
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, Date, DateTime, ForeignKey, Boolean,
     UniqueConstraint, Enum as SAEnum,

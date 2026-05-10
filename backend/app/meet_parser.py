@@ -42,10 +42,6 @@ class MeetEvent:
         return self.round == "PRE"
 
     @property
-    def is_final(self) -> bool:
-        return self.round in ("TIM", "FIN")
-
-    @property
     def gender_int(self) -> int:
         return {"M": 1, "F": 2, "X": 3}.get(self.gender, 0)
 
@@ -67,25 +63,6 @@ class ParsedMeet:
     @property
     def all_events(self) -> list[MeetEvent]:
         return [e for s in self.sessions for e in s.events]
-
-    def find_event(self, swimstyleid: int, gender_int: int, masters: bool = False) -> MeetEvent | None:
-        """Find event by style UID + gender + masters flag. Prefer prelim for non-masters."""
-        gender_str = {1: "M", 2: "F", 3: "X"}.get(gender_int, "")
-        candidates = [e for e in self.all_events
-                      if e.swimstyleid == swimstyleid and e.gender == gender_str
-                      and e.is_masters == masters]
-        # Prefer prelim
-        for e in candidates:
-            if e.is_prelim:
-                return e
-        return candidates[0] if candidates else None
-
-    def find_event_any(self, swimstyleid: int, gender_int: int) -> MeetEvent | None:
-        """Find any event for this style+gender (fallback)."""
-        gender_str = {1: "M", 2: "F", 3: "X"}.get(gender_int, "")
-        candidates = [e for e in self.all_events
-                      if e.swimstyleid == swimstyleid and e.gender == gender_str]
-        return candidates[0] if candidates else None
 
 
 def parse_meet_lxf(source) -> ParsedMeet:

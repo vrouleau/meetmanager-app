@@ -9,7 +9,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from sqlalchemy.orm import Session, joinedload
-from .models import Club, Athlete, Event, AgeGroup, Registration
+from .models import Club, Athlete, Event, Registration
 
 
 def _ms_to_lenex(ms: int | None) -> str:

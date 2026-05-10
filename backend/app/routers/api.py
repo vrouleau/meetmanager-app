@@ -12,7 +12,7 @@ from collections import defaultdict
 import time as _time
 
 from ..database import get_db
-from ..models import Club, Athlete, Event, AgeGroup, Registration, BestTime, AppConfig, Gender, SecretLink
+from ..models import Club, Athlete, Event, Registration, BestTime, AppConfig, Gender, SecretLink
 from ..seed import seed_from_lxf
 from ..best_times import load_best_times
 from ..export import generate_lxf
@@ -59,26 +59,6 @@ def _check_rate_limit(ip: str):
     if len(_auth_attempts[ip]) >= _RATE_LIMIT:
         raise HTTPException(429, "Too many attempts. Try again later.")
     _auth_attempts[ip].append(now)
-
-
-def get_club_from_pin(db: Session, pin: str) -> Club | None:
-    """Validate PIN and return club (or None for admin)."""
-    if pin == _get_admin_pin(db):
-        return None  # admin — no club filter
-    return db.query(Club).filter(Club.pin == pin).first()
-
-
-def require_pin(request, db: Session):
-    """Extract pin from header, validate. Returns (club_id or None for admin)."""
-    pin = request.headers.get("X-Club-Pin", "")
-    if not pin:
-        raise HTTPException(401, "PIN required")
-    if pin == _get_admin_pin(db):
-        return None  # admin
-    club = db.query(Club).filter(Club.pin == pin).first()
-    if not club:
-        raise HTTPException(401, "Invalid PIN")
-    return club.id
 
 
 @router.post("/auth")
@@ -781,7 +761,6 @@ def export_lenex(db: Session = Depends(get_db)):
     """
     import zipfile
     from io import BytesIO
-    from fastapi.responses import Response
 
     lxf_bytes = generate_lxf(db)
     scripts_dir = Path(__file__).resolve().parent.parent.parent / "scripts"

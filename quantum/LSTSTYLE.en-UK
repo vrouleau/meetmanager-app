@@ -1,0 +1,17 @@
+idStyle;Style;StyleAbrév
+0; "Freestyle   "  ;"FR"
+1; "Backstroke  "  ;"BA"
+2; "Breaststroke"  ;"BR"
+3; "Butterfly   "  ;"BU"
+4;  "Sauv. Combiné/Rescue Medley     " ; "ME"
+5;  "Sauveteur Acier/Superlifesaver  " ; "SS"
+6;  "Obstacle                        " ; "OB"
+7;  "Relais Obstacle/Relay Obstacle  " ; "RE"
+8;  "Remorquage Palme/Man. Tow Fins  " ; "MT"
+9;  "Lancé Corde/Line Throw          " ; "LT"
+10; "Portage Palmes/Manikin Carry Fin" ; "MF"
+11; "Relais Portage/Carry Relay      " ; "CR"
+12; "Relais Medley/Medley Relay      " ; "MR"
+13; "Portage Mannequin/Manikin Carry " ; "MC"
+
+

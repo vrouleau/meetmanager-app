@@ -7,8 +7,12 @@ export default function Admin() {
   const [status, setStatus] = useState(null)
   const [meetInfo, setMeetInfo] = useState(null)
   const [clubs, setClubs] = useState([])
+  const [selectedClubId, setSelectedClubId] = useState('')
+  const [emailDraft, setEmailDraft] = useState('')
   const [msg, setMsg] = useState('')
   const { t, lang } = useLang()
+
+  const selectedClub = clubs.find(c => String(c.id) === String(selectedClubId)) || null
 
   useEffect(() => { loadStatus(); loadMeetInfo(); loadClubs() }, [])
 
@@ -25,6 +29,10 @@ export default function Admin() {
   async function loadClubs() {
     const r = await api.get('/clubs')
     setClubs(r.data)
+    setEmailDraft(prev => {
+      const sel = r.data.find(c => String(c.id) === String(selectedClubId))
+      return sel ? (sel.admin_email || '') : prev
+    })
   }
 
   async function uploadMeet(e) {
@@ -217,44 +225,54 @@ export default function Admin() {
       {clubs.length > 0 && (
         <div className="border p-4 rounded mt-4">
           <h2 className="font-semibold mb-2">{t.team_invites || 'Team Invites'}</h2>
-          <table className="w-full text-sm border-collapse">
-            <thead><tr className="bg-gray-100">
-              <th className="border p-2 text-left">Club</th>
-              <th className="border p-2 text-left">Admin Email</th>
-              <th className="border p-2 w-24"></th>
-            </tr></thead>
-            <tbody>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <select
+              className="border p-2 rounded sm:w-64"
+              value={selectedClubId}
+              onChange={e => {
+                const id = e.target.value
+                setSelectedClubId(id)
+                const club = clubs.find(c => String(c.id) === String(id))
+                setEmailDraft(club?.admin_email || '')
+              }}>
+              <option value="">{lang === 'fr' ? '— Choisir un club —' : '— Select a club —'}</option>
               {clubs.map(club => (
-                <tr key={club.id}>
-                  <td className="border p-2">{club.name}</td>
-                  <td className="border p-2">
-                    <input className="border p-1 rounded w-full" type="email"
-                      defaultValue={club.admin_email}
-                      onBlur={async e => {
-                        await api.put(`/clubs/${club.id}`, { admin_email: e.target.value })
-                        loadClubs()
-                      }}
-                      placeholder="coach@example.com" />
-                  </td>
-                  <td className="border p-2 text-center">
-                    <button className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700"
-                      onClick={async () => {
-                        if (!club.admin_email) { setMsg('Set email first'); return }
-                        try {
-                          const r = await api.post(`/clubs/${club.id}/send-pin`, { lang })
-                          setMsg(r.data.message || 'Email sent!')
-                        } catch (e) {
-                          setMsg(e.detail || e.message || 'Error sending email')
-                        }
-                        loadClubs()
-                      }}>
-                      Send PIN
-                    </button>
-                  </td>
-                </tr>
+                <option key={club.id} value={club.id}>{club.name}</option>
               ))}
-            </tbody>
-          </table>
+            </select>
+            {selectedClub && (
+              <>
+                <input
+                  className="border p-2 rounded flex-1"
+                  type="email"
+                  value={emailDraft}
+                  onChange={e => setEmailDraft(e.target.value)}
+                  onBlur={async () => {
+                    if (emailDraft !== (selectedClub.admin_email || '')) {
+                      await api.put(`/clubs/${selectedClub.id}`, { admin_email: emailDraft })
+                      loadClubs()
+                    }
+                  }}
+                  placeholder="coach@example.com" />
+                <button className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  onClick={async () => {
+                    if (emailDraft !== (selectedClub.admin_email || '')) {
+                      await api.put(`/clubs/${selectedClub.id}`, { admin_email: emailDraft })
+                    }
+                    if (!emailDraft) { setMsg('Set email first'); return }
+                    try {
+                      const r = await api.post(`/clubs/${selectedClub.id}/send-pin`, { lang })
+                      setMsg(r.data.message || 'Email sent!')
+                    } catch (e) {
+                      setMsg(e.detail || e.message || 'Error sending email')
+                    }
+                    loadClubs()
+                  }}>
+                  Send PIN
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
 

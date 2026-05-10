@@ -285,7 +285,8 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
                 f"<p>Votre NIP sécurisé (lien à usage unique, expire dans 7 jours) :</p>"
                 f"<p><a href=\"{secret_url}\">{secret_url}</a></p>"
                 f"<p>Portail d'inscription : <a href=\"{base_url}\">{base_url}</a></p>"
-                f"<p>Bonne compétition!</p>")
+                f"<p>Bonne compétition!</p>"
+                f"<hr style=\"margin-top:20px\"><p style=\"font-size:11px;color:#888\">Ce courriel est envoyé automatiquement. Veuillez ne pas y répondre.</p>")
     else:
         subject = f"Invitation — {meet_name}"
         deadline = (f"<p style=\"color:#c00;font-weight:bold\">⚠️ Entry deadline: {closure_date}. "
@@ -297,7 +298,8 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
                 f"<p>Your secure PIN (one-time link, expires in 7 days):</p>"
                 f"<p><a href=\"{secret_url}\">{secret_url}</a></p>"
                 f"<p>Registration portal: <a href=\"{base_url}\">{base_url}</a></p>"
-                f"<p>Good luck!</p>")
+                f"<p>Good luck!</p>"
+                f"<hr style=\"margin-top:20px\"><p style=\"font-size:11px;color:#888\">This is an automated email. Please do not reply.</p>")
 
     # Send via Resend
     from_email = os.environ.get("RESEND_FROM_EMAIL", "noreply@example.com")

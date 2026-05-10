@@ -38,6 +38,7 @@ class Athlete(Base):
     gender = Column(SAEnum(Gender), nullable=False)
     birthdate = Column(Date)
     license = Column(String(20))
+    exception = Column(String(1))  # 'X' for Masters
     club_id = Column(Integer, ForeignKey("clubs.id"), nullable=False)
 
     club = relationship("Club", back_populates="athletes")

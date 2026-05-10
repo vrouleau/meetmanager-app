@@ -501,6 +501,17 @@ def update_athlete(athlete_id: int, data: dict, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+def _update_exception(db: Session, athlete_id: int):
+    """Set exception='X' if athlete has any Masters registration, else clear it."""
+    has_masters = db.query(Registration).filter(
+        Registration.athlete_id == athlete_id,
+        Registration.age_code == "Masters",
+    ).first() is not None
+    athlete = db.query(Athlete).get(athlete_id)
+    if athlete:
+        athlete.exception = "X" if has_masters else None
+
+
 @router.post("/registrations")
 def create_registration(data: dict, db: Session = Depends(get_db)):
     athlete_id = data["athlete_id"]
@@ -517,6 +528,8 @@ def create_registration(data: dict, db: Session = Depends(get_db)):
     if existing:
         existing.entry_time_ms = entry_time_ms
         db.commit()
+        _update_exception(db, athlete_id)
+        db.commit()
         return {"id": existing.id, "updated": True}
 
     reg = Registration(
@@ -524,6 +537,8 @@ def create_registration(data: dict, db: Session = Depends(get_db)):
         age_code=age_code, entry_time_ms=entry_time_ms,
     )
     db.add(reg)
+    db.commit()
+    _update_exception(db, athlete_id)
     db.commit()
     return {"id": reg.id, "updated": False}
 
@@ -533,7 +548,10 @@ def delete_registration(reg_id: int, db: Session = Depends(get_db)):
     reg = db.query(Registration).get(reg_id)
     if not reg:
         raise HTTPException(404)
+    athlete_id = reg.athlete_id
     db.delete(reg)
+    db.commit()
+    _update_exception(db, athlete_id)
     db.commit()
     return {"deleted": True}
 

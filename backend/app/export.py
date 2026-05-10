@@ -124,6 +124,8 @@ def generate_lxf(db: Session) -> bytes:
                 "birthdate": str(ath.birthdate) if ath.birthdate else "",
                 "license": ath.license or "",
             })
+            if ath.exception:
+                ET.SubElement(ath_xml, "HANDICAP", {"exception": ath.exception})
             entries_xml = ET.SubElement(ath_xml, "ENTRIES")
             for reg in ath_data["entries"]:
                 ev = reg.event

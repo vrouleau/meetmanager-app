@@ -106,8 +106,7 @@ def _create_draft_for_club(club: Club, items: list[dict], meet_name: str) -> dic
             customer=customer.id,
             invoice=invoice.id,
             currency="cad",
-            unit_amount=it["unit_cents"],
-            quantity=it["qty"],
+            amount=it["unit_cents"] * it["qty"],
             description=" — ".join(desc_parts) or "Inscription",
         )
     return {

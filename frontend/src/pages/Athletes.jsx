@@ -73,8 +73,11 @@ export default function Athletes({ role, clubId }) {
     api.get('/clubs').then(r => setClubs(r.data))
   }
 
-  async function deleteClub(id, name) {
-    if (!confirm(`Delete club "${name}"? Must have no athletes.`)) return
+  async function deleteClub(id, name, athleteCount) {
+    const msg = athleteCount
+      ? t.confirm_delete_club_with_athletes.replace('%name%', name).replace('%n%', athleteCount)
+      : t.confirm_delete_club.replace('%name%', name)
+    if (!confirm(msg)) return
     try {
       await api.delete(`/clubs/${id}`)
       api.get('/clubs').then(r => {
@@ -82,7 +85,7 @@ export default function Athletes({ role, clubId }) {
         if (r.data.length) setClubFilter(String(r.data[0].id))
         else setClubFilter('')
       })
-    } catch { alert('Cannot delete — club has athletes') }
+    } catch (e) { alert(e.detail || e.message || 'Error deleting club') }
   }
 
   return (
@@ -103,7 +106,10 @@ export default function Athletes({ role, clubId }) {
         ) : (
           <span className="font-semibold">{clubs.find(c => String(c.id) === clubFilter)?.name}</span>
         )}
-        {isAdmin && <button onClick={() => deleteClub(parseInt(clubFilter), clubs.find(c=>c.id===parseInt(clubFilter))?.name)}
+        {isAdmin && <button onClick={() => {
+                  const c = clubs.find(c=>c.id===parseInt(clubFilter))
+                  if (c) deleteClub(c.id, c.name, c.athlete_count || 0)
+                }}
                 className="text-red-600 text-sm hover:underline">{t.delete_club}</button>}
         {isAdmin && <button onClick={() => setShowAddClub(true)}
                 className="text-blue-600 text-sm hover:underline">{t.new_club}</button>}

@@ -195,14 +195,17 @@ def create_club(data: dict, db: Session = Depends(get_db)):
 
 @router.delete("/clubs/{club_id}")
 def delete_club(club_id: int, db: Session = Depends(get_db)):
-    club = db.query(Club).get(club_id)
-    if not club:
+    if not db.query(Club.id).filter(Club.id == club_id).first():
         raise HTTPException(404)
-    if club.athletes:
-        raise HTTPException(400, "Club has athletes — remove them first")
-    db.delete(club)
+    athlete_ids = [aid for (aid,) in db.query(Athlete.id).filter(Athlete.club_id == club_id).all()]
+    if athlete_ids:
+        db.query(Registration).filter(Registration.athlete_id.in_(athlete_ids)).delete(synchronize_session=False)
+        db.query(BestTime).filter(BestTime.athlete_id.in_(athlete_ids)).delete(synchronize_session=False)
+    db.query(Athlete).filter(Athlete.club_id == club_id).delete(synchronize_session=False)
+    db.query(SecretLink).filter(SecretLink.club_id == club_id).delete(synchronize_session=False)
+    db.query(Club).filter(Club.id == club_id).delete(synchronize_session=False)
     db.commit()
-    return {"deleted": True}
+    return {"deleted": True, "athletes_deleted": len(athlete_ids)}
 
 
 @router.post("/clubs/{club_id}/reset-pin")

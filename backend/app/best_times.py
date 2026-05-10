@@ -48,6 +48,31 @@ def _find_or_create_athlete(db: Session, first: str, last: str, license: str, cl
     return ath
 
 
+def _upsert_best_time(db: Session, athlete_id: int, style_uid: int,
+                      time_ms: int, course: str, source: str) -> bool:
+    """Upsert a BT row, only overwriting if the new time is faster.
+    Returns True when a row was inserted or improved."""
+    existing = db.query(BestTime).filter(
+        BestTime.athlete_id == athlete_id,
+        BestTime.style_uid == style_uid,
+        BestTime.course == course,
+    ).first()
+    if existing:
+        if time_ms < existing.time_ms:
+            existing.time_ms = time_ms
+            existing.source = source
+            return True
+        return False
+    db.add(BestTime(
+        athlete_id=athlete_id,
+        style_uid=style_uid,
+        time_ms=time_ms,
+        course=course,
+        source=source,
+    ))
+    return True
+
+
 def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
     """Parse results .lxf and upsert best times. Returns counts."""
     with zipfile.ZipFile(BytesIO(file_bytes)) as z:
@@ -76,6 +101,8 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
     updated = 0
     skipped = 0
     athletes_created = 0
+    # Map Lenex athleteid -> DB Athlete, used later to attribute relay times.
+    athlete_by_lenex_id: dict[str, Athlete] = {}
 
     for club_el in root.iter("CLUB"):
         club_name = club_el.get("name", "")
@@ -86,11 +113,14 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
             license = ath_el.get("license", "")
             gender_str = ath_el.get("gender", "M")
             bd_str = ath_el.get("birthdate", "")
+            lenex_aid = ath_el.get("athleteid", "")
 
             athlete = _find_or_create_athlete(db, first, last, license, club)
             if not athlete:
                 skipped += 1
                 continue
+            if lenex_aid:
+                athlete_by_lenex_id[lenex_aid] = athlete
             # Update gender/birthdate if newly created
             if athlete.id is None or (not athlete.birthdate and bd_str):
                 athlete.gender = Gender.F if gender_str == "F" else Gender.M
@@ -119,27 +149,43 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                 style_uid = event_style.get(eid)
                 if not style_uid:
                     continue
-                best_candidate = min(times)
+                if _upsert_best_time(db, athlete.id, style_uid,
+                                     min(times), course, source):
+                    updated += 1
 
-                existing = db.query(BestTime).filter(
-                    BestTime.athlete_id == athlete.id,
-                    BestTime.style_uid == style_uid,
-                    BestTime.course == course,
-                ).first()
+    # Relay BT: each member of a team gets the team time recorded against the
+    # relay's style_uid, mirroring how individual times update each athlete's BT.
+    for relay_el in root.iter("RELAY"):
+        # The roster (RELAYPOSITIONS) is shared across all entries/results
+        # of a given <RELAY>. SPLASH only writes it on the first one and
+        # omits it from siblings, so fall back to the first list we find.
+        roster: list[Athlete] = []
+        for pos_el in relay_el.iter("RELAYPOSITION"):
+            ath = athlete_by_lenex_id.get(pos_el.get("athleteid", ""))
+            if ath and ath not in roster:
+                roster.append(ath)
+        if not roster:
+            continue
 
-                if existing:
-                    if best_candidate < existing.time_ms:
-                        existing.time_ms = best_candidate
-                        existing.source = source
-                        updated += 1
-                else:
-                    db.add(BestTime(
-                        athlete_id=athlete.id,
-                        style_uid=style_uid,
-                        time_ms=best_candidate,
-                        course=course,
-                        source=source,
-                    ))
+        relay_event_times: dict[str, list[int]] = {}
+        for entry_el in relay_el.iter("ENTRY"):
+            eid = entry_el.get("eventid", "")
+            t = _lenex_time_to_ms(entry_el.get("entrytime", ""))
+            if t and eid:
+                relay_event_times.setdefault(eid, []).append(t)
+        for result_el in relay_el.iter("RESULT"):
+            eid = result_el.get("eventid", "")
+            t = _lenex_time_to_ms(result_el.get("swimtime", ""))
+            if t and eid:
+                relay_event_times.setdefault(eid, []).append(t)
+
+        for eid, times in relay_event_times.items():
+            style_uid = event_style.get(eid)
+            if not style_uid:
+                continue
+            best = min(times)
+            for ath in roster:
+                if _upsert_best_time(db, ath.id, style_uid, best, course, source):
                     updated += 1
 
     db.commit()

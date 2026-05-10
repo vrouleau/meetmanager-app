@@ -287,6 +287,8 @@ export default function Register() {
             <thead><tr className="bg-gray-100">
               <th className="border p-2 w-8">✓</th>
               <th className="border p-2 text-left">{t.event}</th>
+              <th className="border p-2 text-left">{t.bt_50}</th>
+              <th className="border p-2 text-left">{t.bt_25}</th>
               <th className="border p-2 text-left">{t.entry_time}</th>
               <th className="border p-2 text-left">{t.teammates}</th>
             </tr></thead>
@@ -294,6 +296,7 @@ export default function Register() {
               {visibleRelays.map(style => {
                 const reg = style.categories.find(c => c.registered)
                 const teammateCount = style.relay_count - 1
+                const bestMs = style[bestKey]
                 const catAvailable = style.categories.some(c => c.age_code === activeCategory)
                 const lockedBy = style.locked_by_name
                 const rowClass = lockedBy ? 'bg-gray-100 text-gray-500' : (reg ? 'bg-green-50' : '')
@@ -306,7 +309,7 @@ export default function Register() {
                           if (reg) unregister(reg.registration_id)
                           else {
                             const cat = style.categories.find(c => c.age_code === activeCategory) || style.categories[0]
-                            registerEvent(cat.event_id, null, cat.age_code)
+                            registerEvent(cat.event_id, bestMs, cat.age_code)
                           }
                         }} />
                     </td>
@@ -318,10 +321,12 @@ export default function Register() {
                         </span>
                       )}
                     </td>
+                    <td className="border p-2 text-gray-500">{msToTime(style.best_time_lcm_ms)}</td>
+                    <td className="border p-2 text-gray-500">{msToTime(style.best_time_scm_ms)}</td>
                     <td className="border p-2">
                       {!lockedBy && reg && (
-                        <TimeInput defaultValue={msToTime(reg.entry_time_ms)}
-                          key={`r-${reg.registration_id}`}
+                        <TimeInput defaultValue={msToTime(reg.entry_time_ms || bestMs)}
+                          key={`r-${reg.registration_id}-${reg.entry_time_ms}`}
                           onSave={async v => {
                             const ms = parseTime(v)
                             if (ms === undefined) return

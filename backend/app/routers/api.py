@@ -16,7 +16,7 @@ from ..models import Club, Athlete, Event, AgeGroup, Registration, BestTime, App
 from ..seed import seed_from_lxf
 from ..best_times import load_best_times
 from ..export import generate_lxf
-from ..invoices import generate_invoices_zip
+from ..invoices import create_invoice_for_club, create_invoices_for_all_clubs
 
 router = APIRouter(prefix="/api")
 
@@ -753,15 +753,24 @@ def change_admin_pin(data: dict, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-@router.get("/invoices")
+@router.post("/invoices")
 def export_invoices(db: Session = Depends(get_db)):
-    """Download a zip with one PDF invoice per club that has billable fees."""
-    zip_bytes = generate_invoices_zip(db)
-    return Response(
-        content=zip_bytes,
-        media_type="application/zip",
-        headers={"Content-Disposition": "attachment; filename=invoices.zip"},
-    )
+    """Create a Stripe draft invoice for every club with billable fees."""
+    try:
+        return create_invoices_for_all_clubs(db)
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
+
+
+@router.post("/clubs/{club_id}/create-invoice")
+def create_club_invoice(club_id: int, db: Session = Depends(get_db)):
+    """Create a Stripe draft invoice for a single club."""
+    try:
+        return create_invoice_for_club(db, club_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
 
 
 @router.get("/export")

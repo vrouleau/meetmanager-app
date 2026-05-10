@@ -103,8 +103,18 @@ export default function Admin() {
     window.open('/api/export', '_blank')
   }
 
-  function exportInvoices() {
-    window.open('/api/invoices', '_blank')
+  async function exportInvoices() {
+    setMsg('Creating Stripe draft invoices...')
+    try {
+      const r = await api.post('/invoices', {})
+      const d = r.data
+      let m = `Created ${d.created.length} draft invoice(s) in Stripe`
+      if (d.skipped.length) m += `, skipped ${d.skipped.length} (no billable items)`
+      if (d.errors.length) m += `, ${d.errors.length} error(s): ${d.errors.map(e => e.club).join(', ')}`
+      setMsg(m)
+    } catch (e) {
+      setMsg(e.detail || e.message || 'Error creating invoices')
+    }
   }
 
   return (
@@ -269,6 +279,18 @@ export default function Admin() {
                     loadClubs()
                   }}>
                   Send PIN
+                </button>
+                <button className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  onClick={async () => {
+                    setMsg('Creating Stripe draft invoice...')
+                    try {
+                      const r = await api.post(`/clubs/${selectedClub.id}/create-invoice`, {})
+                      setMsg(`Draft invoice created: ${r.data.invoice_id}`)
+                    } catch (e) {
+                      setMsg(e.detail || e.message || 'Error creating invoice')
+                    }
+                  }}>
+                  {t.create_invoice || 'Create Invoice'}
                 </button>
               </>
             )}

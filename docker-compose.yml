@@ -22,6 +22,7 @@ services:
       RESEND_FROM_EMAIL: "${RESEND_FROM_EMAIL:-noreply@example.com}"
       APP_BASE_URL: "${APP_BASE_URL:-http://localhost:8001}"
       SECRET_KEY: "${SECRET_KEY:-change-me-to-a-random-string}"
+      STRIPE_API_KEY: "${STRIPE_API_KEY:-}"
     depends_on:
       db:
         condition: service_healthy

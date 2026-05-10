@@ -30,6 +30,7 @@ class MeetEvent:
     distance: int
     relaycount: int
     style_name: str
+    fee_cents: int = 0
     agegroups: list[MeetAgeGroup] = field(default_factory=list)
 
     @property
@@ -121,6 +122,11 @@ def parse_meet_lxf(source) -> ParsedMeet:
         )
         for event_el in session_el.iter("EVENT"):
             style_el = event_el.find("SWIMSTYLE")
+            fee_el = event_el.find("FEE")
+            try:
+                fee_cents = int(fee_el.get("value", 0)) if fee_el is not None else 0
+            except (ValueError, TypeError):
+                fee_cents = 0
             ev = MeetEvent(
                 eventid=int(event_el.get("eventid", 0)),
                 number=int(event_el.get("number", 0)),
@@ -131,6 +137,7 @@ def parse_meet_lxf(source) -> ParsedMeet:
                 distance=int(style_el.get("distance", 0)) if style_el is not None else 0,
                 relaycount=int(style_el.get("relaycount", 1)) if style_el is not None else 1,
                 style_name=(style_el.get("name", "") if style_el is not None else ""),
+                fee_cents=fee_cents,
             )
             for ag_el in event_el.iter("AGEGROUP"):
                 ev.agegroups.append(MeetAgeGroup(

@@ -62,6 +62,7 @@ class Event(Base):
     event_number = Column(Integer)
     round = Column(Integer)  # 1=TIM (time-trial), 2=PRE (prelim), 9=FIN (final)
     masters = Column(Boolean, default=False)
+    fee_cents = Column(Integer, default=0)
     session_id = Column(Integer)
 
     age_groups = relationship("AgeGroup", back_populates="event",

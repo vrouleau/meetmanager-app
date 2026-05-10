@@ -22,6 +22,7 @@ def _load_from_parsed(db: Session, meet: ParsedMeet) -> int:
             event_number=ev.number,
             round=2 if ev.is_prelim else (1 if ev.round == "TIM" else 9),
             masters=ev.is_masters,
+            fee_cents=ev.fee_cents,
             session_id=None,
         )
         db.add(event)

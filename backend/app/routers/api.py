@@ -16,6 +16,7 @@ from ..models import Club, Athlete, Event, AgeGroup, Registration, BestTime, App
 from ..seed import seed_from_lxf
 from ..best_times import load_best_times
 from ..export import generate_lxf
+from ..invoices import generate_invoices_zip
 
 router = APIRouter(prefix="/api")
 
@@ -750,6 +751,17 @@ def change_admin_pin(data: dict, db: Session = Depends(get_db)):
         db.add(AppConfig(key="admin_pin", value=new_pin))
     db.commit()
     return {"ok": True}
+
+
+@router.get("/invoices")
+def export_invoices(db: Session = Depends(get_db)):
+    """Download a zip with one PDF invoice per club that has billable fees."""
+    zip_bytes = generate_invoices_zip(db)
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=invoices.zip"},
+    )
 
 
 @router.get("/export")

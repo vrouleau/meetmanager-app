@@ -95,6 +95,10 @@ export default function Admin() {
     window.open('/api/export', '_blank')
   }
 
+  function exportInvoices() {
+    window.open('/api/invoices', '_blank')
+  }
+
   return (
     <div className="p-4 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">{t.admin}</h1>
@@ -152,6 +156,15 @@ export default function Admin() {
           <button onClick={exportLxf}
                   className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
             {t.download_lxf}
+          </button>
+        </div>
+
+        <div className="border p-4 rounded">
+          <h2 className="font-semibold mb-2">{t.invoices}</h2>
+          <p className="text-sm text-gray-600 mb-2">{t.invoices_desc}</p>
+          <button onClick={exportInvoices}
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            {t.download_invoices}
           </button>
         </div>
 

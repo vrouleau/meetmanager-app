@@ -655,6 +655,40 @@ def delete_registration(reg_id: int, request: Request, db: Session = Depends(get
     return {"deleted": True}
 
 
+@router.post("/upload/preview")
+async def upload_preview(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Parse a Lenex .lxf and return the counts that would be created, without writing."""
+    from ..seed import parse_lxf
+    content = await file.read()
+    try:
+        clubs_data = parse_lxf(content)
+    except Exception as e:
+        raise HTTPException(400, f"Invalid Lenex .lxf: {e}")
+
+    clubs_new = 0
+    athletes_new = 0
+    for cd in clubs_data:
+        club = db.query(Club).filter(Club.name == cd["name"]).first()
+        if not club:
+            clubs_new += 1
+            athletes_new += len(cd["athletes"])
+        else:
+            for ad in cd["athletes"]:
+                existing = db.query(Athlete).filter(
+                    Athlete.first_name == ad["first_name"],
+                    Athlete.last_name == ad["last_name"],
+                    Athlete.club_id == club.id,
+                ).first()
+                if not existing:
+                    athletes_new += 1
+    return {
+        "clubs_new": clubs_new,
+        "athletes_new": athletes_new,
+        "clubs_in_file": len(clubs_data),
+        "athletes_in_file": sum(len(cd["athletes"]) for cd in clubs_data),
+    }
+
+
 @router.post("/upload/entries")
 async def upload_entries(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """Upload .lxf — seeds clubs + athletes and populates best times."""

@@ -48,13 +48,35 @@ export default function Admin() {
   async function uploadEntries(e) {
     const file = e.target.files[0]
     if (!file) return
+    const fdPreview = new FormData()
+    fdPreview.append('file', file)
+    let preview
+    try {
+      const r = await api.post('/upload/preview', fdPreview)
+      preview = r.data
+    } catch (err) {
+      setMsg('Cannot read file: ' + (err.detail || err.message))
+      e.target.value = ''
+      return
+    }
+    const prompt = t.confirm_upload_lenex
+      .replace('%clubs_total%', preview.clubs_in_file)
+      .replace('%athletes_total%', preview.athletes_in_file)
+      .replace('%clubs%', preview.clubs_new)
+      .replace('%athletes%', preview.athletes_new)
+    if (!confirm(prompt)) {
+      e.target.value = ''
+      return
+    }
     const fd = new FormData()
     fd.append('file', file)
     setMsg('Uploading entries...')
     const r = await api.post('/upload/entries', fd)
     const d = r.data
     setMsg(`Done: ${d.clubs_added} clubs, ${d.athletes_added} athletes, ${d.athletes_created || 0} new from results, ${d.times_updated} best times`)
+    e.target.value = ''
     loadStatus()
+    loadClubs()
   }
 
   async function uploadResults(e) {

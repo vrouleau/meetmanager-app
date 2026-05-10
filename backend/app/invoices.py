@@ -1,12 +1,34 @@
 """Create Stripe draft invoices summarising registration fees, one per club."""
 from __future__ import annotations
 
+import json
 import os
 
 import stripe
 from sqlalchemy.orm import Session, joinedload
 
 from .models import Athlete, AppConfig, Club, Event, Registration
+
+
+MEET_FEE_LABELS = {
+    "CLUB": "Frais de club",
+    "ATHLETE": "Frais par athlète",
+    "RELAY": "Frais par relais",
+    "TEAM": "Frais d'équipe",
+    "LATEFEE": "Inscription tardive",
+    "LSCMEETFEE": "Frais LSC",
+}
+
+
+def _meet_fees(db: Session) -> dict[str, int]:
+    cfg = db.query(AppConfig).get("meet_fees_json")
+    if not cfg or not cfg.value:
+        return {}
+    try:
+        data = json.loads(cfg.value)
+    except ValueError:
+        return {}
+    return {k: int(v) for k, v in data.items() if isinstance(v, (int, float))}
 
 
 def _stripe_client() -> None:
@@ -16,9 +38,11 @@ def _stripe_client() -> None:
     stripe.api_key = key
 
 
-def _club_line_items(db: Session, club: Club) -> list[dict]:
-    """Build flat line items for a club. Individual events bill per athlete;
-    relay events bill once per team (a club fields one team per relay event)."""
+def _club_line_items(db: Session, club: Club, meet_fees: dict[str, int]) -> list[dict]:
+    """Build flat line items for a club: per-event fees (individual events bill
+    per athlete, relay events bill once per team) plus meet-level fees (CLUB,
+    ATHLETE × distinct registered athletes, RELAY × distinct relay events,
+    TEAM/LATEFEE/LSCMEETFEE qty 1)."""
     rows = (
         db.query(Registration, Event, Athlete)
         .join(Event, Registration.event_id == Event.id)
@@ -27,12 +51,12 @@ def _club_line_items(db: Session, club: Club) -> list[dict]:
         .all()
     )
 
-    items: list[dict] = []
+    event_items: list[dict] = []
     relay_seen: dict[int, dict] = {}
 
     for reg, ev, ath in rows:
         if ev.relay_count == 1:
-            items.append({
+            event_items.append({
                 "event_number": ev.event_number,
                 "event_name": ev.style_name or "",
                 "description": f"{ath.last_name.upper()}, {ath.first_name}",
@@ -53,17 +77,59 @@ def _club_line_items(db: Session, club: Club) -> list[dict]:
                     "_sort": (ev.event_number or 0, "", ""),
                 }
                 relay_seen[ev.id] = line
-                items.append(line)
+                event_items.append(line)
             line["members"].append(f"{ath.last_name.upper()}, {ath.first_name}")
 
     for line in relay_seen.values():
         members = sorted(set(line.pop("members")))
         line["description"] = "Relais — " + ", ".join(members) if members else "Relais"
 
-    items.sort(key=lambda x: x["_sort"])
-    for it in items:
+    event_items.sort(key=lambda x: x["_sort"])
+    for it in event_items:
         it.pop("_sort", None)
-    return items
+
+    # Meet-level fee lines, sorted before event lines
+    meet_items: list[dict] = []
+    if meet_fees:
+        # Quantities derived from this club's registrations
+        athlete_count = (
+            db.query(Athlete.id)
+            .join(Registration, Registration.athlete_id == Athlete.id)
+            .filter(Athlete.club_id == club.id)
+            .distinct()
+            .count()
+        )
+        relay_event_count = (
+            db.query(Event.id)
+            .join(Registration, Registration.event_id == Event.id)
+            .join(Athlete, Registration.athlete_id == Athlete.id)
+            .filter(Athlete.club_id == club.id, Event.relay_count > 1)
+            .distinct()
+            .count()
+        )
+        qty_for = {
+            "CLUB": 1,
+            "ATHLETE": athlete_count,
+            "RELAY": relay_event_count,
+            "TEAM": 1,
+            "LATEFEE": 1,
+            "LSCMEETFEE": 1,
+        }
+        for ftype, cents in meet_fees.items():
+            if not cents:
+                continue
+            qty = qty_for.get(ftype, 1)
+            if qty <= 0:
+                continue
+            meet_items.append({
+                "event_number": None,
+                "event_name": MEET_FEE_LABELS.get(ftype, ftype),
+                "description": "",
+                "qty": qty,
+                "unit_cents": cents,
+            })
+
+    return meet_items + event_items
 
 
 def _find_or_create_customer(club: Club) -> stripe.Customer:
@@ -127,7 +193,7 @@ def create_invoice_for_club(db: Session, club_id: int) -> dict:
     club = db.query(Club).options(joinedload(Club.athletes)).get(club_id)
     if not club:
         raise ValueError(f"Club {club_id} not found")
-    items = _club_line_items(db, club)
+    items = _club_line_items(db, club, _meet_fees(db))
     if not items:
         raise ValueError("No billable items for this club")
     return _create_draft_for_club(club, items, _meet_name(db))
@@ -137,6 +203,7 @@ def create_invoices_for_all_clubs(db: Session) -> dict:
     """Create Stripe draft invoices for every club with billable items."""
     _stripe_client()
     meet_name = _meet_name(db)
+    meet_fees = _meet_fees(db)
     clubs = (
         db.query(Club)
         .options(joinedload(Club.athletes))
@@ -147,7 +214,7 @@ def create_invoices_for_all_clubs(db: Session) -> dict:
     skipped: list[str] = []
     errors: list[dict] = []
     for club in clubs:
-        items = _club_line_items(db, club)
+        items = _club_line_items(db, club, meet_fees)
         if not items:
             skipped.append(club.name)
             continue

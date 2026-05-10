@@ -58,6 +58,8 @@ class ParsedMeet:
     meet_name: str = ""
     course: str = ""
     masters: bool = False
+    currency: str = ""
+    meet_fees: dict[str, int] = field(default_factory=dict)
     sessions: list[MeetSession] = field(default_factory=list)
 
     @property
@@ -91,6 +93,17 @@ def parse_meet_lxf(source) -> ParsedMeet:
         meet.meet_name = meet_el.get("name", "")
         meet.course = meet_el.get("course", "")
         meet.masters = meet_el.get("masters", "").upper() == "T"
+        for fee_el in meet_el.iterfind("FEES/FEE"):
+            ftype = (fee_el.get("type") or "").upper()
+            if not ftype:
+                continue
+            try:
+                meet.meet_fees[ftype] = int(fee_el.get("value", 0))
+            except (ValueError, TypeError):
+                continue
+            cur = fee_el.get("currency")
+            if cur and not meet.currency:
+                meet.currency = cur
 
     for session_el in root.iter("SESSION"):
         ses = MeetSession(

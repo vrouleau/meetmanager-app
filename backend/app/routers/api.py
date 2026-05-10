@@ -101,11 +101,14 @@ async def upload_meet(file: UploadFile = File(...), db: Session = Depends(get_db
     count = _load_from_parsed(db, meet)
 
     # Track metadata
+    import json as _json
     for key, val in [("meet_filename", file.filename or "meet.lxf"),
                      ("meet_uploaded_at", datetime.utcnow().isoformat()),
                      ("meet_name", meet.meet_name),
                      ("meet_course", meet.course),
-                     ("meet_masters", "T" if meet.masters else "F")]:
+                     ("meet_masters", "T" if meet.masters else "F"),
+                     ("meet_currency", meet.currency or "CAD"),
+                     ("meet_fees_json", _json.dumps(meet.meet_fees))]:
         cfg = db.query(AppConfig).get(key)
         if cfg:
             cfg.value = val
@@ -128,12 +131,29 @@ async def upload_meet(file: UploadFile = File(...), db: Session = Depends(get_db
 
 @router.get("/meet-info")
 def meet_info(db: Session = Depends(get_db)):
+    import json as _json
     filename = db.query(AppConfig).get("meet_filename")
     uploaded = db.query(AppConfig).get("meet_uploaded_at")
     name = db.query(AppConfig).get("meet_name")
     course = db.query(AppConfig).get("meet_course")
     masters = db.query(AppConfig).get("meet_masters")
     closure = db.query(AppConfig).get("closure_date")
+    currency = db.query(AppConfig).get("meet_currency")
+    fees_json = db.query(AppConfig).get("meet_fees_json")
+    try:
+        meet_fees = _json.loads(fees_json.value) if fees_json and fees_json.value else {}
+    except ValueError:
+        meet_fees = {}
+    event_fees = [
+        {
+            "event_number": e.event_number,
+            "style_name": e.style_name,
+            "distance": e.distance,
+            "relay_count": e.relay_count,
+            "fee_cents": e.fee_cents or 0,
+        }
+        for e in db.query(Event).order_by(Event.event_number).all()
+    ]
     return {
         "filename": filename.value if filename else None,
         "uploaded_at": uploaded.value if uploaded else None,
@@ -142,6 +162,9 @@ def meet_info(db: Session = Depends(get_db)):
         "masters": (masters.value == "T") if masters else False,
         "events": db.query(Event).count(),
         "closure_date": closure.value if closure else None,
+        "currency": currency.value if currency else "CAD",
+        "meet_fees": meet_fees,
+        "event_fees": event_fees,
     }
 
 

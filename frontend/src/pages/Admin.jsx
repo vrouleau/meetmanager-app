@@ -142,6 +142,8 @@ export default function Admin() {
         </div>
       )}
 
+      <FeeSummary meetInfo={meetInfo} t={t} lang={lang} />
+
       {/* Closure date */}
       <div className="mb-4 p-3 bg-yellow-50 rounded text-sm flex items-center gap-3">
         <label className="font-semibold whitespace-nowrap">{lang === 'fr' ? 'Date limite d\'inscription' : 'Entry closure date'}:</label>
@@ -302,6 +304,81 @@ export default function Admin() {
         Source : <a href="https://github.com/vrouleau/meetmanager-app" target="_blank" rel="noopener" className="underline">github.com/vrouleau/meetmanager-app</a>
         {' '}— build : {BUILD_TIMESTAMP}
       </footer>
+    </div>
+  )
+}
+
+const FEE_TYPE_LABEL = {
+  CLUB: 'fee_per_club',
+  ATHLETE: 'fee_per_athlete',
+  RELAY: 'fee_per_relay',
+  TEAM: 'fee_per_team',
+  LATEFEE: 'fee_late',
+  LSCMEETFEE: 'fee_lsc',
+}
+
+function formatMoney(cents, currency, lang) {
+  const amount = (cents || 0) / 100
+  try {
+    return new Intl.NumberFormat(lang === 'fr' ? 'fr-CA' : 'en-CA', {
+      style: 'currency',
+      currency: currency || 'CAD',
+    }).format(amount)
+  } catch {
+    return `${amount.toFixed(2)} ${currency || ''}`.trim()
+  }
+}
+
+function FeeSummary({ meetInfo, t, lang }) {
+  if (!meetInfo) return null
+  const currency = meetInfo.currency || 'CAD'
+  const meetFees = meetInfo.meet_fees || {}
+  const eventFees = (meetInfo.event_fees || []).filter(e => (e.fee_cents || 0) > 0)
+  const meetFeeEntries = Object.entries(meetFees)
+  const hasMeet = !!meetInfo.filename
+
+  return (
+    <div className="mb-4 border rounded p-3 bg-gray-50">
+      <h2 className="font-semibold mb-2">{t.fee_summary} {currency ? <span className="text-xs text-gray-500">({currency})</span> : null}</h2>
+      <div className="h-56 overflow-y-auto border bg-white rounded p-2 text-sm font-mono whitespace-pre">
+        {!hasMeet ? (
+          <span className="text-gray-500">{t.fee_no_meet}</span>
+        ) : (
+          <>
+            <div className="font-sans font-semibold text-gray-700 mb-1">{t.fee_meet_level}</div>
+            {meetFeeEntries.length === 0 ? (
+              <div className="font-sans text-gray-500 mb-2">{t.fee_none_meet_level}</div>
+            ) : (
+              <div className="mb-2">
+                {meetFeeEntries.map(([type, cents]) => {
+                  const labelKey = FEE_TYPE_LABEL[type]
+                  const label = labelKey ? t[labelKey] : type
+                  return (
+                    <div key={type}>
+                      {label.padEnd(22, ' ')}{formatMoney(cents, currency, lang)}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="font-sans font-semibold text-gray-700 mb-1">{t.fee_per_event}</div>
+            {eventFees.length === 0 ? (
+              <div className="font-sans text-gray-500">{t.fee_none_event}</div>
+            ) : (
+              eventFees.map((e, i) => {
+                const num = e.event_number != null ? `#${String(e.event_number).padStart(3, ' ')}` : '   '
+                const name = (e.style_name || '').slice(0, 40).padEnd(40, ' ')
+                return (
+                  <div key={i}>
+                    {num}  {name}{formatMoney(e.fee_cents, currency, lang)}
+                  </div>
+                )
+              })
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }

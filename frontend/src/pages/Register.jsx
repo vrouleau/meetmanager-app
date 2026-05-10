@@ -68,7 +68,7 @@ export default function Register() {
   const [category, setCategory] = useState(null)
   const { t } = useLang()
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => { setCategory(null); load() }, [id])
 
   useEffect(() => {
     if (!data || category !== null) return
@@ -84,6 +84,7 @@ export default function Register() {
 
   async function saveAthlete(field, value) {
     await api.put(`/athletes/${id}`, { [field]: value })
+    if (field === 'birthdate') setCategory(null)
     load()
   }
 

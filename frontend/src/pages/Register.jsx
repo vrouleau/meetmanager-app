@@ -129,7 +129,8 @@ export default function Register() {
 
   if (!data) return <div className="p-4">Loading...</div>
 
-  const closed = data.closure_date && new Date() > new Date(data.closure_date + 'T23:59:59')
+  const isAdmin = localStorage.getItem('role') === 'admin'
+  const closed = !isAdmin && data.closure_date && new Date() > new Date(data.closure_date + 'T23:59:59')
   if (closed) return (
     <div className="p-8 max-w-md mx-auto text-center">
       <p className="text-red-600 text-lg font-bold">

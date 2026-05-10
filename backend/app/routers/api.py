@@ -127,6 +127,17 @@ async def upload_meet(file: UploadFile = File(...), db: Session = Depends(get_db
             cfg.value = val
         else:
             db.add(AppConfig(key=key, value=val))
+
+    # Reset closure date
+    closure = db.query(AppConfig).get("closure_date")
+    if closure:
+        closure.value = ""
+
+    # Regenerate club PINs
+    import random, string
+    for club in db.query(Club).all():
+        club.pin = ''.join(random.choices(string.digits, k=6))
+
     db.commit()
     return {"events_loaded": count, "filename": file.filename}
 
@@ -539,7 +550,9 @@ def _update_exception(db: Session, athlete_id: int):
         athlete.exception = "X" if has_masters else None
 
 
-def _check_closure(db: Session):
+def _check_closure(db: Session, pin: str = ""):
+    if pin == _get_admin_pin(db):
+        return
     cfg = db.query(AppConfig).get("closure_date")
     if cfg and cfg.value:
         from datetime import date
@@ -548,8 +561,8 @@ def _check_closure(db: Session):
 
 
 @router.post("/registrations")
-def create_registration(data: dict, db: Session = Depends(get_db)):
-    _check_closure(db)
+def create_registration(data: dict, request: Request, db: Session = Depends(get_db)):
+    _check_closure(db, request.headers.get("X-Club-Pin", ""))
     athlete_id = data["athlete_id"]
     event_id = data["event_id"]
     age_code = data.get("age_code", "OPEN")
@@ -580,8 +593,8 @@ def create_registration(data: dict, db: Session = Depends(get_db)):
 
 
 @router.delete("/registrations/{reg_id}")
-def delete_registration(reg_id: int, db: Session = Depends(get_db)):
-    _check_closure(db)
+def delete_registration(reg_id: int, request: Request, db: Session = Depends(get_db)):
+    _check_closure(db, request.headers.get("X-Club-Pin", ""))
     reg = db.query(Registration).get(reg_id)
     if not reg:
         raise HTTPException(404)

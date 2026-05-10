@@ -111,8 +111,11 @@ async def upload_meet(file: UploadFile = File(...), db: Session = Depends(get_db
     MEET_STORAGE.parent.mkdir(parents=True, exist_ok=True)
     MEET_STORAGE.write_bytes(content)
 
-    # Reload events
+    # Reload events: wipe registrations first (FK -> events has no cascade),
+    # then events. Replacing the meet erases the prior competition.
+    db.query(Registration).delete()
     db.query(Event).delete()
+    db.flush()
     from ..events import _load_from_parsed
     count = _load_from_parsed(db, meet)
 

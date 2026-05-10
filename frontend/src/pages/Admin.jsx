@@ -30,13 +30,19 @@ export default function Admin() {
   async function uploadMeet(e) {
     const file = e.target.files[0]
     if (!file) return
+    if (meetInfo?.filename && !confirm(t.confirm_replace_meet)) {
+      e.target.value = ''
+      return
+    }
     const fd = new FormData()
     fd.append('file', file)
     setMsg('Uploading meet structure...')
     const r = await api.post('/upload/meet', fd)
     setMsg(`Done: ${r.data.events_loaded} events loaded from ${r.data.filename}`)
+    e.target.value = ''
     loadStatus()
     loadMeetInfo()
+    loadClubs()
   }
 
   async function uploadEntries(e) {

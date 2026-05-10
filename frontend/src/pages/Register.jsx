@@ -129,6 +129,15 @@ export default function Register() {
 
   if (!data) return <div className="p-4">Loading...</div>
 
+  const closed = data.closure_date && new Date() > new Date(data.closure_date + 'T23:59:59')
+  if (closed) return (
+    <div className="p-8 max-w-md mx-auto text-center">
+      <p className="text-red-600 text-lg font-bold">
+        {t.entries_closed || 'Les inscriptions sont fermées. / Entries are closed.'}
+      </p>
+    </div>
+  )
+
   const { athlete, individual_events, relay_events, club_athletes, suggested_age_code, meet_course } = data
   const bestKey = meet_course === 'SCM' ? 'best_time_scm_ms' : 'best_time_lcm_ms'
   const activeCategory = category || suggested_age_code

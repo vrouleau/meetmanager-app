@@ -90,6 +90,19 @@ export default function Admin() {
         </div>
       )}
 
+      {/* Closure date */}
+      <div className="mb-4 p-3 bg-yellow-50 rounded text-sm flex items-center gap-3">
+        <label className="font-semibold whitespace-nowrap">{lang === 'fr' ? 'Date limite d\'inscription' : 'Entry closure date'}:</label>
+        <input type="date" className="border p-1 rounded"
+          defaultValue={meetInfo?.closure_date || ''}
+          onBlur={async e => {
+            await api.put('/closure-date', { closure_date: e.target.value })
+            loadMeetInfo()
+            setMsg(lang === 'fr' ? 'Date limite enregistrée' : 'Closure date saved')
+          }} />
+        {meetInfo?.closure_date && <span className="text-gray-600">{new Date(meetInfo.closure_date + 'T00:00:00').toLocaleDateString()}</span>}
+      </div>
+
       <div className="space-y-4">
         <div className="border p-4 rounded">
           <h2 className="font-semibold mb-2">{t.upload_meet}</h2>

@@ -138,6 +138,7 @@ def meet_info(db: Session = Depends(get_db)):
     name = db.query(AppConfig).get("meet_name")
     course = db.query(AppConfig).get("meet_course")
     masters = db.query(AppConfig).get("meet_masters")
+    closure = db.query(AppConfig).get("closure_date")
     return {
         "filename": filename.value if filename else None,
         "uploaded_at": uploaded.value if uploaded else None,
@@ -145,7 +146,20 @@ def meet_info(db: Session = Depends(get_db)):
         "course": course.value if course else None,
         "masters": (masters.value == "T") if masters else False,
         "events": db.query(Event).count(),
+        "closure_date": closure.value if closure else None,
     }
+
+
+@router.put("/closure-date")
+def set_closure_date(data: dict, db: Session = Depends(get_db)):
+    val = data.get("closure_date") or ""
+    cfg = db.query(AppConfig).get("closure_date")
+    if cfg:
+        cfg.value = val
+    else:
+        db.add(AppConfig(key="closure_date", value=val))
+    db.commit()
+    return {"closure_date": val}
 
 @router.get("/clubs")
 def list_clubs(db: Session = Depends(get_db)):
@@ -242,25 +256,33 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
     base_url = os.environ.get("APP_BASE_URL", "http://localhost:8001")
     secret_url = f"{base_url}/secret/{token}"
 
-    # Get meet name
+    # Get meet name and closure date
     meet_cfg = db.query(AppConfig).get("meet_name")
     meet_name = meet_cfg.value if meet_cfg else "Meet"
+    closure_cfg = db.query(AppConfig).get("closure_date")
+    closure_date = closure_cfg.value if closure_cfg else None
 
     # Email content
     if lang == "fr":
         subject = f"Invitation — {meet_name}"
+        deadline = (f"<p style=\"color:#c00;font-weight:bold\">⚠️ Date limite d'inscription : {closure_date}. "
+                    f"Après cette date, vous ne pourrez plus accéder au portail d'inscription.</p>") if closure_date else ""
         html = (f"<p>Bonjour,</p>"
                 f"<p>Vous êtes invité(e) à inscrire votre équipe <strong>{club.name}</strong> "
                 f"pour <strong>{meet_name}</strong>.</p>"
+                f"{deadline}"
                 f"<p>Votre NIP sécurisé (lien à usage unique, expire dans 7 jours) :</p>"
                 f"<p><a href=\"{secret_url}\">{secret_url}</a></p>"
                 f"<p>Portail d'inscription : <a href=\"{base_url}\">{base_url}</a></p>"
                 f"<p>Bonne compétition!</p>")
     else:
         subject = f"Invitation — {meet_name}"
+        deadline = (f"<p style=\"color:#c00;font-weight:bold\">⚠️ Entry deadline: {closure_date}. "
+                    f"After this date, you will no longer be able to access the registration portal.</p>") if closure_date else ""
         html = (f"<p>Hello,</p>"
                 f"<p>You are invited to register your team <strong>{club.name}</strong> "
                 f"for <strong>{meet_name}</strong>.</p>"
+                f"{deadline}"
                 f"<p>Your secure PIN (one-time link, expires in 7 days):</p>"
                 f"<p><a href=\"{secret_url}\">{secret_url}</a></p>"
                 f"<p>Registration portal: <a href=\"{base_url}\">{base_url}</a></p>"
@@ -471,6 +493,7 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
     meet_course_cfg = db.query(AppConfig).get("meet_course")
     meet_course = meet_course_cfg.value if meet_course_cfg else "LCM"
 
+    closure_cfg = db.query(AppConfig).get("closure_date")
     return {
         "athlete": {
             "id": athlete.id, "first_name": athlete.first_name,
@@ -481,6 +504,7 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
         },
         "suggested_age_code": suggested_age_code,
         "meet_course": meet_course,
+        "closure_date": closure_cfg.value if closure_cfg else None,
         "individual_events": individual_events,
         "relay_events": relay_events,
         "club_athletes": [{"id": a.id, "name": f"{a.last_name}, {a.first_name}"}
@@ -515,8 +539,17 @@ def _update_exception(db: Session, athlete_id: int):
         athlete.exception = "X" if has_masters else None
 
 
+def _check_closure(db: Session):
+    cfg = db.query(AppConfig).get("closure_date")
+    if cfg and cfg.value:
+        from datetime import date
+        if date.today() > date.fromisoformat(cfg.value):
+            raise HTTPException(403, "Inscriptions fermées / Entries closed")
+
+
 @router.post("/registrations")
 def create_registration(data: dict, db: Session = Depends(get_db)):
+    _check_closure(db)
     athlete_id = data["athlete_id"]
     event_id = data["event_id"]
     age_code = data.get("age_code", "OPEN")
@@ -548,6 +581,7 @@ def create_registration(data: dict, db: Session = Depends(get_db)):
 
 @router.delete("/registrations/{reg_id}")
 def delete_registration(reg_id: int, db: Session = Depends(get_db)):
+    _check_closure(db)
     reg = db.query(Registration).get(reg_id)
     if not reg:
         raise HTTPException(404)

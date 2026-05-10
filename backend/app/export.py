@@ -19,9 +19,7 @@ def _ms_to_lenex(ms: int | None) -> str:
     m = (ms % 3600000) // 60000
     s = (ms % 60000) // 1000
     cs = (ms % 1000) // 10
-    if h:
-        return f"{h:02d}:{m:02d}:{s:02d}.{cs:02d}"
-    return f"{m:02d}:{s:02d}.{cs:02d}"
+    return f"{h:02d}:{m:02d}:{s:02d}.{cs:02d}"
 
 
 def _agegroup_for_code(age_groups, age_code: str, masters: bool):

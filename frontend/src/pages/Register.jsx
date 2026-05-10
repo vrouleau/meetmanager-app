@@ -295,10 +295,13 @@ export default function Register() {
                 const reg = style.categories.find(c => c.registered)
                 const teammateCount = style.relay_count - 1
                 const catAvailable = style.categories.some(c => c.age_code === activeCategory)
+                const lockedBy = style.locked_by_name
+                const rowClass = lockedBy ? 'bg-gray-100 text-gray-500' : (reg ? 'bg-green-50' : '')
                 return (
-                  <tr key={style.style_uid} className={reg ? 'bg-green-50' : ''}>
+                  <tr key={style.style_uid} className={rowClass}>
                     <td className="border p-2 text-center">
-                      <input type="checkbox" checked={!!reg} disabled={saving || (!reg && !catAvailable)}
+                      <input type="checkbox" checked={!!reg}
+                        disabled={saving || !!lockedBy || (!reg && !catAvailable)}
                         onChange={() => {
                           if (reg) unregister(reg.registration_id)
                           else {
@@ -307,9 +310,16 @@ export default function Register() {
                           }
                         }} />
                     </td>
-                    <td className="border p-2">{style.style_name} ({style.relay_count}x)</td>
                     <td className="border p-2">
-                      {reg && (
+                      {style.style_name} ({style.relay_count}x)
+                      {lockedBy && (
+                        <span className="ml-2 text-xs italic">
+                          — {t.already_registered_by} {lockedBy}
+                        </span>
+                      )}
+                    </td>
+                    <td className="border p-2">
+                      {!lockedBy && reg && (
                         <TimeInput defaultValue={msToTime(reg.entry_time_ms)}
                           key={`r-${reg.registration_id}`}
                           onSave={async v => {
@@ -324,7 +334,7 @@ export default function Register() {
                       )}
                     </td>
                     <td className="border p-2">
-                      {reg && (
+                      {!lockedBy && reg && (
                         <div className="flex flex-wrap gap-1">
                           {Array.from({length: teammateCount}, (_, i) => (
                             <select key={i} className="border p-1 rounded text-xs w-40">

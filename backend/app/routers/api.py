@@ -482,6 +482,29 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
         s["best_time_lcm_ms"] = best_map_lcm.get(s["style_uid"])
         s["best_time_scm_ms"] = best_map_scm.get(s["style_uid"])
 
+    # Relay locks: a club fields one team per relay event, so if any other
+    # athlete in the same club already has a registration on this style,
+    # this athlete's edit page must show the relay locked.
+    relay_uids = [s["style_uid"] for s in relay_events]
+    locked_by: dict[int, str] = {}
+    if relay_uids:
+        other_relay_regs = (
+            db.query(Athlete, Event)
+            .join(Registration, Registration.athlete_id == Athlete.id)
+            .join(Event, Registration.event_id == Event.id)
+            .filter(
+                Athlete.club_id == athlete.club_id,
+                Athlete.id != athlete_id,
+                Event.style_uid.in_(relay_uids),
+                Event.relay_count > 1,
+            )
+            .all()
+        )
+        for ath, ev in other_relay_regs:
+            locked_by.setdefault(ev.style_uid, f"{ath.first_name} {ath.last_name}")
+    for s in relay_events:
+        s["locked_by_name"] = locked_by.get(s["style_uid"])
+
     # Club athletes for relay teammate selection
     club_athletes = db.query(Athlete).filter(
         Athlete.club_id == athlete.club_id,

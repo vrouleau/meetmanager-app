@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../api'
 
@@ -6,8 +6,11 @@ export default function Secret() {
   const { token } = useParams()
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
+  const called = useRef(false)
 
   useEffect(() => {
+    if (called.current) return
+    called.current = true
     api.get(`/secret/${token}`)
       .then(r => setData(r.data))
       .catch(e => setError(e.detail || 'Lien invalide ou expiré. / Link invalid or expired.'))

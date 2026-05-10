@@ -122,6 +122,7 @@ class SecretLink(Base):
     pin_encrypted = Column(String(200), nullable=False)
     expires_at = Column(DateTime, nullable=False)
     viewed = Column(Boolean, default=False)
+    lang = Column(String(2), default="fr")
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

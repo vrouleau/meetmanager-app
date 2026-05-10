@@ -231,9 +231,12 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
     token = str(uuid.uuid4())
     expires = datetime.utcnow() + timedelta(days=7)
     link = SecretLink(token=token, club_id=club.id,
-                      pin_encrypted=pin_encrypted, expires_at=expires)
+                      pin_encrypted=pin_encrypted, expires_at=expires, lang=lang)
     db.add(link)
+    db.flush()
     db.commit()
+    db.refresh(link)
+    print(f"[send_pin] SecretLink id={link.id} token={token[:8]}... committed")
 
     # Build URL
     base_url = os.environ.get("APP_BASE_URL", "http://localhost:8001")
@@ -286,11 +289,11 @@ def reveal_secret(token: str, db: Session = Depends(get_db)):
 
     link = db.query(SecretLink).filter(SecretLink.token == token).first()
     if not link:
-        raise HTTPException(404, "Link not found")
+        raise HTTPException(404, "Lien introuvable. / Link not found.")
     if link.viewed:
-        raise HTTPException(410, "This link has already been viewed")
+        raise HTTPException(410, "Ce lien a déjà été utilisé. / This link has already been viewed.")
     if datetime.utcnow() > link.expires_at:
-        raise HTTPException(410, "This link has expired")
+        raise HTTPException(410, "Ce lien est expiré. / This link has expired.")
 
     # Decrypt PIN
     fernet_key = os.environ.get("SECRET_KEY", "default-secret-key-change-me!!")

@@ -10,7 +10,7 @@ export default function Secret() {
   useEffect(() => {
     api.get(`/secret/${token}`)
       .then(r => setData(r.data))
-      .catch(e => setError(e.response?.data?.detail || 'Link invalid or expired'))
+      .catch(e => setError(e.detail || 'Lien invalide ou expiré. / Link invalid or expired.'))
   }, [token])
 
   if (error) return (

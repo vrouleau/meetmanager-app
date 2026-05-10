@@ -8,7 +8,11 @@ function headers(extra = {}) {
 const api = {
   async get(path) {
     const res = await fetch(`${API}${path}`, { headers: headers() })
-    if (!res.ok) throw new Error(`${res.status}`)
+    if (!res.ok) {
+      const err = new Error(`${res.status}`)
+      try { err.detail = (await res.json()).detail } catch {}
+      throw err
+    }
     return { data: await res.json() }
   },
   async post(path, body) {

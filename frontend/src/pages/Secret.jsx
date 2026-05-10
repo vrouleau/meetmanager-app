@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../api'
 
@@ -6,15 +6,18 @@ export default function Secret() {
   const { token } = useParams()
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
-  const called = useRef(false)
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    if (called.current) return
-    called.current = true
-    api.get(`/secret/${token}`)
-      .then(r => setData(r.data))
-      .catch(e => setError(e.detail || 'Lien invalide ou expiré. / Link invalid or expired.'))
-  }, [token])
+  async function reveal() {
+    setLoading(true)
+    try {
+      const r = await api.post(`/secret/${token}`, {})
+      setData(r.data)
+    } catch (e) {
+      setError(e.detail || 'Lien invalide ou expiré. / Link invalid or expired.')
+    }
+    setLoading(false)
+  }
 
   if (error) return (
     <div className="p-8 max-w-md mx-auto text-center">
@@ -22,7 +25,17 @@ export default function Secret() {
     </div>
   )
 
-  if (!data) return <div className="p-8 text-center">Loading...</div>
+  if (!data) return (
+    <div className="p-8 max-w-md mx-auto text-center">
+      <h1 className="text-xl font-bold mb-4">Révéler le NIP / Reveal PIN</h1>
+      <button
+        onClick={reveal}
+        disabled={loading}
+        className="bg-blue-600 text-white px-6 py-3 rounded text-lg hover:bg-blue-700 disabled:opacity-50">
+        {loading ? '...' : 'Afficher / Show'}
+      </button>
+    </div>
+  )
 
   return (
     <div className="p-8 max-w-md mx-auto text-center">

@@ -281,7 +281,7 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
     return {"message": f"Email sent to {club.admin_email}"}
 
 
-@router.get("/secret/{token}")
+@router.post("/secret/{token}")
 def reveal_secret(token: str, db: Session = Depends(get_db)):
     """One-time reveal of encrypted PIN."""
     import hashlib, base64

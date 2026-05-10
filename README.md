@@ -57,6 +57,18 @@ See `docs/workflow_en.md` / `docs/workflow_fr.md` for the full end-to-end guide 
 4. Admin exports registrations → import into SPLASH
 5. After meet: export results from SPLASH → upload to update best times
 
+## Troubleshooting
+
+### Reset forgotten admin PIN
+
+If the admin PIN was changed via the UI and forgotten, reset it to the `.env` default:
+
+```bash
+docker compose exec db psql -U postgres meetmanager -c "DELETE FROM app_config WHERE key='admin_pin';"
+```
+
+The app will fall back to the `ADMIN_PIN` value from `.env`.
+
 ## Structure
 
 ```

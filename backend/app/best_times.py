@@ -7,7 +7,7 @@ from io import BytesIO
 from xml.etree import ElementTree as ET
 
 from sqlalchemy.orm import Session
-from .models import Athlete, BestTime
+from .models import Athlete, BestTime, Club, Gender
 
 
 def _lenex_time_to_ms(t: str) -> int | None:
@@ -28,15 +28,24 @@ def _lenex_time_to_ms(t: str) -> int | None:
     return None
 
 
-def _find_athlete(db: Session, first: str, last: str, license: str) -> Athlete | None:
-    """Match athlete by license first, then name."""
+def _find_or_create_athlete(db: Session, first: str, last: str, license: str, club=None) -> Athlete | None:
+    """Match athlete by license first, then name. Create if not found and club provided."""
     if license:
         ath = db.query(Athlete).filter(Athlete.license == license).first()
         if ath:
             return ath
-    return db.query(Athlete).filter(
+    ath = db.query(Athlete).filter(
         Athlete.first_name == first, Athlete.last_name == last
     ).first()
+    if ath:
+        return ath
+    if not club:
+        return None
+    from .models import Gender
+    ath = Athlete(first_name=first, last_name=last, gender=Gender.M, club_id=club.id, license=license)
+    db.add(ath)
+    db.flush()
+    return ath
 
 
 def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
@@ -66,17 +75,32 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
 
     updated = 0
     skipped = 0
+    athletes_created = 0
 
     for club_el in root.iter("CLUB"):
+        club_name = club_el.get("name", "")
+        club = db.query(Club).filter(Club.name == club_name).first()
         for ath_el in club_el.iter("ATHLETE"):
             first = ath_el.get("firstname", "")
             last = ath_el.get("lastname", "")
             license = ath_el.get("license", "")
+            gender_str = ath_el.get("gender", "M")
+            bd_str = ath_el.get("birthdate", "")
 
-            athlete = _find_athlete(db, first, last, license)
+            athlete = _find_or_create_athlete(db, first, last, license, club)
             if not athlete:
                 skipped += 1
                 continue
+            # Update gender/birthdate if newly created
+            if athlete.id is None or (not athlete.birthdate and bd_str):
+                athlete.gender = Gender.F if gender_str == "F" else Gender.M
+                if bd_str:
+                    try:
+                        from datetime import date as _date
+                        athlete.birthdate = _date.fromisoformat(bd_str)
+                    except ValueError:
+                        pass
+                athletes_created += 1
 
             # Collect best candidate times per event: entry time and result time
             event_times: dict[str, list[int]] = {}
@@ -119,4 +143,4 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                     updated += 1
 
     db.commit()
-    return {"times_updated": updated, "athletes_skipped": skipped}
+    return {"times_updated": updated, "athletes_skipped": skipped, "athletes_created": athletes_created}

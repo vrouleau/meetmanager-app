@@ -46,7 +46,8 @@ export default function Admin() {
     fd.append('file', file)
     setMsg('Uploading entries...')
     const r = await api.post('/upload/entries', fd)
-    setMsg(`Done: ${r.data.clubs_added} clubs, ${r.data.athletes_added} athletes added`)
+    const d = r.data
+    setMsg(`Done: ${d.clubs_added} clubs, ${d.athletes_added} athletes, ${d.athletes_created || 0} new from results, ${d.times_updated} best times`)
     loadStatus()
   }
 
@@ -57,7 +58,8 @@ export default function Admin() {
     fd.append('file', file)
     setMsg('Uploading results...')
     const r = await api.post('/upload/results', fd)
-    setMsg(`Done: ${r.data.times_updated} best times updated, ${r.data.athletes_skipped} skipped`)
+    const d = r.data
+    setMsg(`Done: ${d.clubs_added} clubs, ${d.athletes_added} athletes, ${d.athletes_created || 0} new from results, ${d.times_updated} best times`)
     loadStatus()
   }
 
@@ -111,15 +113,9 @@ export default function Admin() {
         </div>
 
         <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">{t.upload_entries}</h2>
-          <p className="text-sm text-gray-600 mb-2">{t.upload_entries_desc}</p>
+          <h2 className="font-semibold mb-2">{t.upload_lxf || 'Upload Lenex (.lxf)'}</h2>
+          <p className="text-sm text-gray-600 mb-2">{t.upload_lxf_desc || 'Upload entries or results — clubs, athletes, and best times will be imported.'}</p>
           <input type="file" accept=".lxf" onChange={uploadEntries} />
-        </div>
-
-        <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">{t.upload_results}</h2>
-          <p className="text-sm text-gray-600 mb-2">{t.upload_results_desc}</p>
-          <input type="file" accept=".lxf" onChange={uploadResults} />
         </div>
 
         <div className="border p-4 rounded">

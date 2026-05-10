@@ -610,18 +610,20 @@ def delete_registration(reg_id: int, request: Request, db: Session = Depends(get
 
 @router.post("/upload/entries")
 async def upload_entries(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    """Upload entries .lxf to seed clubs + athletes."""
+    """Upload .lxf — seeds clubs + athletes and populates best times."""
     content = await file.read()
-    result = seed_from_lxf(db, content)
-    return result
+    seed_result = seed_from_lxf(db, content)
+    times_result = load_best_times(db, content, source=file.filename or "upload")
+    return {**seed_result, **times_result}
 
 
 @router.post("/upload/results")
 async def upload_results(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    """Upload results .lxf to populate best times."""
+    """Upload results .lxf to populate best times (alias for entries upload)."""
     content = await file.read()
-    result = load_best_times(db, content, source=file.filename or "upload")
-    return result
+    seed_result = seed_from_lxf(db, content)
+    times_result = load_best_times(db, content, source=file.filename or "upload")
+    return {**seed_result, **times_result}
 
 
 @router.get("/status")

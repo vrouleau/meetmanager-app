@@ -182,6 +182,7 @@ export default function Admin() {
                       defaultValue={club.admin_email}
                       onBlur={async e => {
                         await api.put(`/clubs/${club.id}`, { admin_email: e.target.value })
+                        loadClubs()
                       }}
                       placeholder="coach@example.com" />
                   </td>
@@ -189,8 +190,12 @@ export default function Admin() {
                     <button className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700"
                       onClick={async () => {
                         if (!club.admin_email) { setMsg('Set email first'); return }
-                        const r = await api.post(`/clubs/${club.id}/send-pin`, { lang })
-                        setMsg(r.data.message || 'Email sent!')
+                        try {
+                          const r = await api.post(`/clubs/${club.id}/send-pin`, { lang })
+                          setMsg(r.data.message || 'Email sent!')
+                        } catch (e) {
+                          setMsg(e.response?.data?.detail || 'Error sending email')
+                        }
                         loadClubs()
                       }}>
                       Send PIN

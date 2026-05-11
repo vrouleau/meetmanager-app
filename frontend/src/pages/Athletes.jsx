@@ -10,8 +10,7 @@ export default function Athletes({ role, clubId }) {
   const [clubFilter, setClubFilter] = useState(clubId || sessionStorage.getItem('clubFilter') || '')
   const [search, setSearch] = useState('')
   const [showAddAthlete, setShowAddAthlete] = useState(false)
-  const [showAddClub, setShowAddClub] = useState(false)
-  const [newClub, setNewClub] = useState('')
+
   const isAdmin = role === 'admin'
   const canViewAll = role === 'admin' || role === 'organizer'
 
@@ -66,28 +65,7 @@ export default function Athletes({ role, clubId }) {
     reload()
   }
 
-  async function addClub(e) {
-    e.preventDefault()
-    await api.post('/clubs', { name: newClub })
-    setNewClub('')
-    setShowAddClub(false)
-    api.get('/clubs').then(r => setClubs(r.data))
-  }
 
-  async function deleteClub(id, name, athleteCount) {
-    const msg = athleteCount
-      ? t.confirm_delete_club_with_athletes.replace('%name%', name).replace('%n%', athleteCount)
-      : t.confirm_delete_club.replace('%name%', name)
-    if (!confirm(msg)) return
-    try {
-      await api.delete(`/clubs/${id}`)
-      api.get('/clubs').then(r => {
-        setClubs(r.data)
-        if (r.data.length) setClubFilter(String(r.data[0].id))
-        else setClubFilter('')
-      })
-    } catch (e) { alert(e.detail || e.message || 'Error deleting club') }
-  }
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
@@ -107,13 +85,7 @@ export default function Athletes({ role, clubId }) {
         ) : (
           <span className="font-semibold">{clubs.find(c => String(c.id) === clubFilter)?.name}</span>
         )}
-        {isAdmin && <button onClick={() => {
-                  const c = clubs.find(c=>c.id===parseInt(clubFilter))
-                  if (c) deleteClub(c.id, c.name, c.athlete_count || 0)
-                }}
-                className="text-red-600 text-sm hover:underline">{t.delete_club}</button>}
-        {isAdmin && <button onClick={() => setShowAddClub(true)}
-                className="text-blue-600 text-sm hover:underline">{t.new_club}</button>}
+
         <button onClick={async () => {
           if (!confirm('Reset PIN for this club?')) return
           const r = await api.post(`/clubs/${clubFilter}/reset-pin`, {})
@@ -126,14 +98,7 @@ export default function Athletes({ role, clubId }) {
                className="border p-2 rounded w-48" />
       </div>
 
-      {showAddClub && (
-        <form onSubmit={addClub} className="mb-4 p-3 border rounded bg-yellow-50 flex gap-2">
-          <input placeholder="Club name" value={newClub} onChange={e => setNewClub(e.target.value)}
-                 className="border p-1 rounded flex-1" required />
-          <button type="submit" className="bg-blue-600 text-white px-3 rounded">Add</button>
-          <button type="button" onClick={() => setShowAddClub(false)} className="text-gray-500">Cancel</button>
-        </form>
-      )}
+
 
       {/* Add athlete */}
       <div className="mb-3">

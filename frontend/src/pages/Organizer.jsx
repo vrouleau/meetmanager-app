@@ -59,14 +59,7 @@ export default function Organizer() {
     setMsg(`${sent} ${t.invitations_sent}${errors ? ` (${errors} ${lang === 'fr' ? 'erreur(s)' : 'error(s)'})` : ''}`)
   }
 
-  async function inviteAll() {
-    if (!confirm(t.confirm_invite_all)) return
-    setMsg(lang === 'fr' ? 'Envoi en cours...' : 'Sending...')
-    try {
-      const r = await api.post('/organizer/clubs/invite-all', { lang })
-      setMsg(`${r.data.sent} ${t.invitations_sent}${r.data.errors.length ? ` (${r.data.errors.length} ${lang === 'fr' ? 'erreur(s)' : 'error(s)'})` : ''}`)
-    } catch (e) { setMsg(e.detail || e.message || 'Error') }
-  }
+
 
   const checkedCount = Object.values(checked).filter(Boolean).length
 
@@ -119,9 +112,6 @@ export default function Organizer() {
           <button onClick={sendSelected} disabled={!checkedCount}
             className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50">
             {t.send_invitation} {checkedCount > 0 && `(${checkedCount})`}
-          </button>
-          <button onClick={inviteAll} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-            {t.invite_all}
           </button>
         </div>
 

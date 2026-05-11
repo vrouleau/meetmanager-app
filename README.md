@@ -13,6 +13,7 @@ Web-based registration management for lifesaving competitions. Integrates with S
 - **Lenex export**: generates .lxf with correct SPLASH event IDs
 - **Best times**: separate LCM/SCM tracking, considers entry time vs result time (keeps fastest)
 - **Email invites**: per-club admin email, one-time encrypted PIN link (7-day expiry), sent via Resend
+- **Billing**: Stripe Connect (organizer connects their account) + PDF invoice fallback. Per-event fees resolved from paired TIM/PRE event structure. Meet-level fees (club, athlete, relay, late).
 - **Bilingual**: FR/EN toggle (localStorage persisted)
 - **Security**: rate limiting, TLS-ready, PIN in POST body, no /docs exposed
 
@@ -22,6 +23,7 @@ Web-based registration management for lifesaving competitions. Integrates with S
 - **Frontend**: React (Vite) + TailwindCSS
 - **Deploy**: Docker Compose (backend, frontend/nginx, postgres)
 - **Email**: Resend API
+- **Billing**: Stripe Connect + reportlab PDF invoices
 - **Encryption**: Fernet (cryptography) for one-time PIN links
 
 ## Quick Start
@@ -46,6 +48,7 @@ See `.env.example`:
 | `RESEND_FROM_EMAIL` | Sender email (must be verified in Resend) |
 | `APP_BASE_URL` | Public frontend URL (used in email links) |
 | `SECRET_KEY` | Key for encrypting PINs in one-time links |
+| `STRIPE_API_KEY` | Stripe secret key for invoice generation |
 
 ## Workflow
 
@@ -101,6 +104,7 @@ meetmanager-app/
 │   └── app/
 │       ├── models.py        # Club, Athlete, Event, Registration, BestTime, SecretLink
 │       ├── routers/api.py   # All endpoints, PIN auth, rate limiting
+│       ├── invoices.py      # Stripe invoices + PDF generation (reportlab)
 │       ├── meet_parser.py   # Parse SPLASH meet .lxf
 │       ├── seed.py          # Parse entries .lxf → clubs + athletes
 │       ├── best_times.py    # Parse results .lxf → best times (LCM/SCM)
@@ -109,7 +113,7 @@ meetmanager-app/
 │       └── main.py          # FastAPI app entry
 ├── frontend/
 │   └── src/
-│       ├── pages/           # Login, Athletes, Register, Admin, Secret
+│       ├── pages/           # Login, Athletes, Register, Admin, Organizer, Secret
 │       ├── i18n.jsx         # FR/EN translations
 │       └── buildInfo.js     # Build timestamp
 ├── docs/                    # Workflow guides + screenshots

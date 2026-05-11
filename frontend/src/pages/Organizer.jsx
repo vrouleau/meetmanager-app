@@ -55,6 +55,10 @@ export default function Organizer() {
     } catch (e) { setMsg(e.message || 'Error') }
   }
 
+  function exportLxf() {
+    window.open('/api/export', '_blank')
+  }
+
   async function uploadMeet(e) {
     const file = e.target.files[0]
     if (!file) return
@@ -187,6 +191,16 @@ export default function Organizer() {
         <h2 className="font-semibold mb-2">{t.upload_meet}</h2>
         <p className="text-sm text-gray-600 mb-2">{t.upload_meet_desc}</p>
         <input type="file" accept=".lxf" onChange={uploadMeet} />
+      </div>
+
+      {/* Export */}
+      <div className="border p-4 rounded mb-4">
+        <h2 className="font-semibold mb-2">{t.export}</h2>
+        <p className="text-sm text-gray-600 mb-2">{t.export_desc}</p>
+        <button onClick={exportLxf}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+          {t.download_lxf}
+        </button>
       </div>
 
       {/* Team invite management */}

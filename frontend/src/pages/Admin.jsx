@@ -76,10 +76,6 @@ export default function Admin() {
     loadStatus()
   }
 
-  function exportLxf() {
-    window.open('/api/export', '_blank')
-  }
-
   async function addClub() {
     if (!newClubName.trim()) return
     try {
@@ -126,15 +122,6 @@ export default function Admin() {
           <h2 className="font-semibold mb-2">{t.upload_lxf}</h2>
           <p className="text-sm text-gray-600 mb-2">{t.upload_lxf_desc}</p>
           <input type="file" accept=".lxf" onChange={uploadEntries} />
-        </div>
-
-        <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">{t.export}</h2>
-          <p className="text-sm text-gray-600 mb-2">{t.export_desc}</p>
-          <button onClick={exportLxf}
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-            {t.download_lxf}
-          </button>
         </div>
 
         <div className="border p-4 rounded">

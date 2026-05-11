@@ -45,11 +45,15 @@ def _club_line_items(db: Session, club: Club, meet_fees: dict[str, int]) -> list
     per athlete, relay events bill once per team) plus meet-level fees (CLUB,
     ATHLETE × distinct registered athletes, RELAY × distinct relay events,
     TEAM/LATEFEE/LSCMEETFEE qty 1)."""
+    # Build a map of event_number -> fee_cents for fee lookup (includes paired events)
+    all_events = db.query(Event).all()
+    fee_by_number = {e.event_number: e.fee_cents for e in all_events if e.fee_cents > 0}
+
     rows = (
         db.query(Registration, Event, Athlete)
         .join(Event, Registration.event_id == Event.id)
         .join(Athlete, Registration.athlete_id == Athlete.id)
-        .filter(Athlete.club_id == club.id, Event.fee_cents > 0)
+        .filter(Athlete.club_id == club.id)
         .all()
     )
 
@@ -57,13 +61,17 @@ def _club_line_items(db: Session, club: Club, meet_fees: dict[str, int]) -> list
     relay_seen: dict[int, dict] = {}
 
     for reg, ev, ath in rows:
+        # Fee is either on this event or on the preceding event (paired structure)
+        fee = ev.fee_cents or fee_by_number.get(ev.event_number - 1, 0)
+        if fee <= 0:
+            continue
         if ev.relay_count == 1:
             event_items.append({
                 "event_number": ev.event_number,
                 "event_name": ev.style_name or "",
                 "description": f"{ath.last_name.upper()}, {ath.first_name}",
                 "qty": 1,
-                "unit_cents": ev.fee_cents,
+                "unit_cents": fee,
                 "_sort": (ev.event_number or 0, ath.last_name.lower(), ath.first_name.lower()),
             })
         else:
@@ -75,7 +83,7 @@ def _club_line_items(db: Session, club: Club, meet_fees: dict[str, int]) -> list
                     "description": "",
                     "members": [],
                     "qty": 1,
-                    "unit_cents": ev.fee_cents,
+                    "unit_cents": fee,
                     "_sort": (ev.event_number or 0, "", ""),
                 }
                 relay_seen[ev.id] = line

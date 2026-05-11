@@ -5,11 +5,13 @@ import api from '../api'
 export default function Organizer() {
   const [meetInfo, setMeetInfo] = useState(null)
   const [clubs, setClubs] = useState([])
+  const [clubTotals, setClubTotals] = useState({})
   const [checked, setChecked] = useState({})
+  const [stripeStatus, setStripeStatus] = useState(null)
   const [msg, setMsg] = useState('')
   const { t, lang } = useLang()
 
-  useEffect(() => { loadMeetInfo(); loadClubs() }, [])
+  useEffect(() => { loadMeetInfo(); loadClubs(); loadStripeStatus() }, [])
 
   async function loadMeetInfo() {
     const r = await api.get('/meet-info')
@@ -19,6 +21,29 @@ export default function Organizer() {
   async function loadClubs() {
     const r = await api.get('/clubs')
     setClubs(r.data)
+    // Load invoice totals for each club
+    const totals = {}
+    await Promise.all(r.data.map(async c => {
+      try {
+        const tr = await api.get(`/clubs/${c.id}/invoice-total`)
+        totals[c.id] = tr.data.total_cents
+      } catch { totals[c.id] = 0 }
+    }))
+    setClubTotals(totals)
+  }
+
+  async function loadStripeStatus() {
+    try {
+      const r = await api.get('/stripe/status')
+      setStripeStatus(r.data)
+    } catch { setStripeStatus({ connected: false }) }
+  }
+
+  async function connectStripe() {
+    try {
+      const r = await api.post('/stripe/connect', {})
+      window.location.href = r.data.url
+    } catch (e) { setMsg(e.response?.data?.detail || e.message || 'Error') }
   }
 
   async function uploadMeet(e) {
@@ -59,6 +84,20 @@ export default function Organizer() {
     setMsg(`${sent} ${t.invitations_sent}${errors ? ` (${errors} ${lang === 'fr' ? 'erreur(s)' : 'error(s)'})` : ''}`)
   }
 
+  async function sendInvoice(club) {
+    const total = clubTotals[club.id] || 0
+    const amount = formatMoney(total, meetInfo?.currency || 'CAD', lang)
+    const message = lang === 'fr'
+      ? `Envoyer la facture de ${amount} à ${club.name} ?`
+      : `Send invoice of ${amount} to ${club.name}?`
+    if (!confirm(message)) return
+    setMsg(lang === 'fr' ? 'Création de la facture...' : 'Creating invoice...')
+    try {
+      const r = await api.post(`/clubs/${club.id}/invoice`, {})
+      setMsg(lang === 'fr' ? `Facture envoyée à ${club.name}` : `Invoice sent to ${club.name}`)
+    } catch (e) { setMsg(e.detail || e.message || 'Error') }
+  }
+
 
 
   const checkedCount = Object.values(checked).filter(Boolean).length
@@ -83,6 +122,19 @@ export default function Organizer() {
       )}
 
       <FeeSummary meetInfo={meetInfo} t={t} lang={lang} />
+
+      {/* Stripe Connect */}
+      <div className="mb-4 p-3 bg-purple-50 rounded text-sm flex items-center gap-3">
+        <span className="font-semibold">{t.stripe_connect}:</span>
+        {stripeStatus?.connected ? (
+          <span className="text-green-700 font-medium">✓ {t.stripe_connected}</span>
+        ) : (
+          <button onClick={connectStripe}
+            className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 text-sm">
+            {t.stripe_connect_btn}
+          </button>
+        )}
+      </div>
 
       {/* Closure date */}
       <div className="mb-4 p-3 bg-yellow-50 rounded text-sm flex items-center gap-3">
@@ -128,6 +180,7 @@ export default function Organizer() {
               </th>
               <th className="p-2 text-left">{t.club}</th>
               <th className="p-2 text-left">Email</th>
+              <th className="p-2 text-left">{t.invoice}</th>
             </tr></thead>
             <tbody>
               {clubs.map(c => (
@@ -136,6 +189,14 @@ export default function Organizer() {
                     onChange={e => setChecked(prev => ({...prev, [c.id]: e.target.checked}))} /></td>
                   <td className="p-2">{c.name}</td>
                   <td className="p-2 text-gray-600">{c.admin_email || <span className="text-red-400">{lang === 'fr' ? 'aucun' : 'none'}</span>}</td>
+                  <td className="p-2">
+                    {(clubTotals[c.id] || 0) > 0 && stripeStatus?.connected && (
+                      <button onClick={() => sendInvoice(c)}
+                        className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700">
+                        {t.send_invoice_btn} ({formatMoney(clubTotals[c.id], meetInfo?.currency || 'CAD', lang)})
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

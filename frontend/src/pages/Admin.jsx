@@ -80,20 +80,6 @@ export default function Admin() {
     window.open('/api/export', '_blank')
   }
 
-  async function exportInvoices() {
-    setMsg('Creating Stripe draft invoices...')
-    try {
-      const r = await api.post('/invoices', {})
-      const d = r.data
-      let m = `Created ${d.created.length} draft invoice(s) in Stripe`
-      if (d.skipped.length) m += `, skipped ${d.skipped.length} (no billable items)`
-      if (d.errors.length) m += `, ${d.errors.length} error(s): ${d.errors.map(e => e.club).join(', ')}`
-      setMsg(m)
-    } catch (e) {
-      setMsg(e.detail || e.message || 'Error creating invoices')
-    }
-  }
-
   async function addClub() {
     if (!newClubName.trim()) return
     try {
@@ -148,15 +134,6 @@ export default function Admin() {
           <button onClick={exportLxf}
                   className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
             {t.download_lxf}
-          </button>
-        </div>
-
-        <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">{t.invoices}</h2>
-          <p className="text-sm text-gray-600 mb-2">{t.invoices_desc}</p>
-          <button onClick={exportInvoices}
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-            {t.download_invoices}
           </button>
         </div>
 
@@ -252,7 +229,7 @@ export default function Admin() {
               <tbody>
                 {clubs.map(c => (
                   <tr key={c.id} className="border-b hover:bg-gray-50">
-                    <td className="p-2">{c.name} <span className="text-xs text-gray-400">({c.athlete_count})</span></td>
+                    <td className="p-2">{c.name} <span className="text-xs text-gray-400">({c.athlete_count}, PIN:{c.pin})</span></td>
                     <td className="p-2">
                       <input type="email" className="border p-1 rounded w-full text-sm"
                         defaultValue={c.admin_email}

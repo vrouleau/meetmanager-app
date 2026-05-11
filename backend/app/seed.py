@@ -71,7 +71,10 @@ def seed_from_lxf(db: Session, file_bytes: bytes) -> dict:
             db.flush()
             clubs_added += 1
         else:
-            # Set email from Lenex if DB email is empty
+            if cd.get("code"):
+                club.code = cd["code"]
+            if cd.get("nation"):
+                club.nation = cd["nation"]
             if not club.admin_email and cd.get("email"):
                 club.admin_email = cd["email"]
 

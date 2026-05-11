@@ -76,6 +76,21 @@ export default function Admin() {
     loadStatus()
   }
 
+  function exportLxf() {
+    fetch('/api/export', { headers: { 'X-Club-Pin': localStorage.getItem('pin') || '' } })
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.blob() })
+      .then(blob => {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'inscriptions_bundle.zip'
+        a.click()
+        URL.revokeObjectURL(url)
+      })
+      .catch(e => setMsg('Export error: ' + e.message))
+  }
+
+
   async function addClub() {
     if (!newClubName.trim()) return
     try {

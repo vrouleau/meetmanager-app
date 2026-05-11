@@ -12,7 +12,7 @@ export default function Athletes({ role, clubId }) {
   const [showAddAthlete, setShowAddAthlete] = useState(false)
 
   const isAdmin = role === 'admin'
-  const canViewAll = role === 'admin' || role === 'organizer'
+  const canViewAll = role === 'admin'
 
   useEffect(() => {
     api.get('/clubs').then(r => {
@@ -86,12 +86,12 @@ export default function Athletes({ role, clubId }) {
           <span className="font-semibold">{clubs.find(c => String(c.id) === clubFilter)?.name}</span>
         )}
 
-        <button onClick={async () => {
+        {isAdmin && <button onClick={async () => {
           if (!confirm('Reset PIN for this club?')) return
           const r = await api.post(`/clubs/${clubFilter}/reset-pin`, {})
           alert(`New PIN: ${r.data.pin}`)
           api.get('/clubs').then(r => setClubs(r.data))
-        }} className="text-orange-600 text-sm hover:underline">{t.reset_pin}</button>
+        }} className="text-orange-600 text-sm hover:underline">{t.reset_pin}</button>}
         <div className="flex-1" />
         <input type="text" placeholder={t.search} value={search}
                onChange={e => setSearch(e.target.value)}

@@ -12,9 +12,10 @@ from .routers.api import router
 
 app = FastAPI(title="Meet Manager", docs_url=None, redoc_url=None)
 
+_cors_origin = os.environ.get("APP_BASE_URL", "http://localhost:8001")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[_cors_origin],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -24,7 +25,19 @@ app.include_router(router)
 
 @app.on_event("startup")
 def startup():
+    # Refuse to start with the default insecure SECRET_KEY
+    if os.environ.get("SECRET_KEY", "change-me-to-a-random-string") == "change-me-to-a-random-string":
+        raise RuntimeError("SECRET_KEY must be changed from the default value")
+
     Base.metadata.create_all(bind=engine)
+    # Add stripe_account_id column if missing (existing DBs)
+    from sqlalchemy import inspect, text
+    insp = inspect(engine)
+    if "clubs" in insp.get_table_names():
+        cols = [c["name"] for c in insp.get_columns("clubs")]
+        if "stripe_account_id" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE clubs ADD COLUMN stripe_account_id VARCHAR(100)"))
     # Load events from stored meet .lxf if available and events table is empty
     meet_path = Path(os.environ.get("MEET_STORAGE", "/app/data/meet.lxf"))
     if meet_path.exists():

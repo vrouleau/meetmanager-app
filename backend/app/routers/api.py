@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import os
+import secrets
+import string
 from datetime import datetime
 from pathlib import Path
 
@@ -62,6 +64,32 @@ def _check_rate_limit(ip: str):
     _auth_attempts[ip].append(now)
 
 
+def _resolve_role(pin: str, db: Session) -> tuple[str, int | None]:
+    """Return (role, club_id) for a given PIN."""
+    if pin == _get_admin_pin(db):
+        return "admin", None
+    club = db.query(Club).filter(Club.pin == pin).first()
+    if not club:
+        return "none", None
+    org_cfg = db.query(AppConfig).get("organizer_club_id")
+    if org_cfg and org_cfg.value == str(club.id):
+        return "organizer", club.id
+    return "coach", club.id
+
+
+def require_admin(request: Request, db: Session = Depends(get_db)):
+    pin = request.headers.get("X-Club-Pin", "")
+    if pin != _get_admin_pin(db):
+        raise HTTPException(403, "Admin access required")
+
+
+def require_organizer_or_admin(request: Request, db: Session = Depends(get_db)):
+    pin = request.headers.get("X-Club-Pin", "")
+    role, _ = _resolve_role(pin, db)
+    if role not in ("admin", "organizer"):
+        raise HTTPException(403, "Organizer or admin access required")
+
+
 @router.post("/auth")
 def auth(data: dict, request: Request, db: Session = Depends(get_db)):
     """Validate PIN, return club info."""
@@ -74,7 +102,7 @@ def auth(data: dict, request: Request, db: Session = Depends(get_db)):
         return {"role": "admin", "club_id": None, "club_name": "Admin"}
     club = db.query(Club).filter(Club.pin == pin).first()
     if not club:
-        print(f"[LOGIN] FAILED pin={pin} from {ip}")
+        print(f"[LOGIN] FAILED from {ip}")
         raise HTTPException(401, "Invalid PIN")
     # Check if this club is the designated organizer
     org_cfg = db.query(AppConfig).get("organizer_club_id")
@@ -85,10 +113,12 @@ def auth(data: dict, request: Request, db: Session = Depends(get_db)):
     return {"role": "coach", "club_id": club.id, "club_name": club.name}
 
 
-@router.post("/upload/meet")
+@router.post("/upload/meet", dependencies=[Depends(require_organizer_or_admin)])
 async def upload_meet(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """Upload meet .lxf — sets event structure."""
     content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(413, "File too large (max 10MB)")
     from ..meet_parser import parse_meet_lxf
     try:
         meet = parse_meet_lxf(content)
@@ -127,9 +157,8 @@ async def upload_meet(file: UploadFile = File(...), db: Session = Depends(get_db
         closure.value = ""
 
     # Regenerate club PINs
-    import random, string
     for club in db.query(Club).all():
-        club.pin = ''.join(random.choices(string.digits, k=6))
+        club.pin = ''.join(secrets.choice(string.digits) for _ in range(6))
 
     db.commit()
     return {"events_loaded": count, "filename": file.filename}
@@ -174,7 +203,7 @@ def meet_info(db: Session = Depends(get_db)):
     }
 
 
-@router.put("/closure-date")
+@router.put("/closure-date", dependencies=[Depends(require_organizer_or_admin)])
 def set_closure_date(data: dict, db: Session = Depends(get_db)):
     val = data.get("closure_date") or ""
     cfg = db.query(AppConfig).get("closure_date")
@@ -186,24 +215,31 @@ def set_closure_date(data: dict, db: Session = Depends(get_db)):
     return {"closure_date": val}
 
 @router.get("/clubs")
-def list_clubs(db: Session = Depends(get_db)):
+def list_clubs(request: Request, db: Session = Depends(get_db)):
+    pin = request.headers.get("X-Club-Pin", "")
+    role, _ = _resolve_role(pin, db)
     clubs = db.query(Club).order_by(Club.name).all()
-    return [{"id": c.id, "name": c.name, "code": c.code,
-             "pin": c.pin, "admin_email": c.admin_email or "",
-             "athlete_count": len(c.athletes)} for c in clubs]
+    result = []
+    for c in clubs:
+        item = {"id": c.id, "name": c.name, "code": c.code,
+                "admin_email": c.admin_email or "",
+                "athlete_count": len(c.athletes)}
+        if role == "admin":
+            item["pin"] = c.pin
+        result.append(item)
+    return result
 
 
-@router.post("/clubs")
+@router.post("/clubs", dependencies=[Depends(require_admin)])
 def create_club(data: dict, db: Session = Depends(get_db)):
-    import random
-    pin = data.get("pin") or f"{random.randint(100000, 999999)}"
+    pin = data.get("pin") or ''.join(secrets.choice(string.digits) for _ in range(6))
     club = Club(name=data["name"], code=data.get("code", ""), nation=data.get("nation", "CAN"), pin=pin)
     db.add(club)
     db.commit()
     return {"id": club.id, "pin": club.pin}
 
 
-@router.delete("/clubs/{club_id}")
+@router.delete("/clubs/{club_id}", dependencies=[Depends(require_admin)])
 def delete_club(club_id: int, db: Session = Depends(get_db)):
     if not db.query(Club.id).filter(Club.id == club_id).first():
         raise HTTPException(404)
@@ -218,19 +254,18 @@ def delete_club(club_id: int, db: Session = Depends(get_db)):
     return {"deleted": True, "athletes_deleted": len(athlete_ids)}
 
 
-@router.post("/clubs/{club_id}/reset-pin")
+@router.post("/clubs/{club_id}/reset-pin", dependencies=[Depends(require_admin)])
 def reset_club_pin(club_id: int, db: Session = Depends(get_db)):
     """Reset PIN for a single club."""
-    import random
     club = db.query(Club).get(club_id)
     if not club:
         raise HTTPException(404)
-    club.pin = f"{random.randint(100000, 999999)}"
+    club.pin = ''.join(secrets.choice(string.digits) for _ in range(6))
     db.commit()
     return {"club": club.name, "pin": club.pin}
 
 
-@router.put("/clubs/{club_id}")
+@router.put("/clubs/{club_id}", dependencies=[Depends(require_admin)])
 def update_club(club_id: int, data: dict, db: Session = Depends(get_db)):
     club = db.query(Club).get(club_id)
     if not club:
@@ -241,7 +276,7 @@ def update_club(club_id: int, data: dict, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-@router.post("/clubs/{club_id}/send-pin")
+@router.post("/clubs/{club_id}/send-pin", dependencies=[Depends(require_organizer_or_admin)])
 def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
     """Create one-time secret link with PIN, send invite email via Resend."""
     import uuid
@@ -726,11 +761,13 @@ def delete_registration(reg_id: int, request: Request, db: Session = Depends(get
     return {"deleted": True}
 
 
-@router.post("/upload/preview")
+@router.post("/upload/preview", dependencies=[Depends(require_admin)])
 async def upload_preview(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """Parse a Lenex .lxf and return the counts that would be created, without writing."""
     from ..seed import parse_lxf
     content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(413, "File too large (max 10MB)")
     try:
         clubs_data = parse_lxf(content)
     except Exception as e:
@@ -760,19 +797,23 @@ async def upload_preview(file: UploadFile = File(...), db: Session = Depends(get
     }
 
 
-@router.post("/upload/entries")
+@router.post("/upload/entries", dependencies=[Depends(require_admin)])
 async def upload_entries(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """Upload .lxf — seeds clubs + athletes and populates best times."""
     content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(413, "File too large (max 10MB)")
     seed_result = seed_from_lxf(db, content)
     times_result = load_best_times(db, content, source=file.filename or "upload")
     return {**seed_result, **times_result}
 
 
-@router.post("/upload/results")
+@router.post("/upload/results", dependencies=[Depends(require_admin)])
 async def upload_results(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """Upload results .lxf to populate best times (alias for entries upload)."""
     content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(413, "File too large (max 10MB)")
     seed_result = seed_from_lxf(db, content)
     times_result = load_best_times(db, content, source=file.filename or "upload")
     return {**seed_result, **times_result}
@@ -789,7 +830,7 @@ def status(db: Session = Depends(get_db)):
     }
 
 
-@router.delete("/registrations")
+@router.delete("/registrations", dependencies=[Depends(require_admin)])
 def flush_meet(db: Session = Depends(get_db)):
     """Flush meet: delete registrations, events, meet config, and organizer designation."""
     reg_count = db.query(Registration).delete()
@@ -804,18 +845,17 @@ def flush_meet(db: Session = Depends(get_db)):
     return {"deleted": reg_count}
 
 
-@router.post("/clubs/regenerate-pins")
+@router.post("/clubs/regenerate-pins", dependencies=[Depends(require_admin)])
 def regenerate_pins(db: Session = Depends(get_db)):
     """Regenerate all club PINs."""
-    import random
     clubs = db.query(Club).all()
     for club in clubs:
-        club.pin = f"{random.randint(100000, 999999)}"
+        club.pin = ''.join(secrets.choice(string.digits) for _ in range(6))
     db.commit()
     return {"regenerated": len(clubs)}
 
 
-@router.post("/organizer/clubs/invite-all")
+@router.post("/organizer/clubs/invite-all", dependencies=[Depends(require_organizer_or_admin)])
 def invite_all_clubs(data: dict, request: Request, db: Session = Depends(get_db)):
     """Send PIN invitation email to all clubs that have an admin_email set."""
     lang = data.get("lang", "fr")
@@ -831,7 +871,7 @@ def invite_all_clubs(data: dict, request: Request, db: Session = Depends(get_db)
     return {"sent": sent, "errors": errors}
 
 
-@router.get("/admin/organizer")
+@router.get("/admin/organizer", dependencies=[Depends(require_admin)])
 def get_organizer(db: Session = Depends(get_db)):
     """Return current organizer club info."""
     cfg = db.query(AppConfig).get("organizer_club_id")
@@ -843,7 +883,7 @@ def get_organizer(db: Session = Depends(get_db)):
     return {"club_id": club.id, "club_name": club.name}
 
 
-@router.post("/admin/set-organizer")
+@router.post("/admin/set-organizer", dependencies=[Depends(require_admin)])
 def set_organizer(data: dict, db: Session = Depends(get_db)):
     """Designate a club as the meet organizer."""
     club_id = data.get("club_id")
@@ -860,7 +900,7 @@ def set_organizer(data: dict, db: Session = Depends(get_db)):
     return {"ok": True, "organizer_club_id": club_id}
 
 
-@router.post("/admin/change-pin")
+@router.post("/admin/change-pin", dependencies=[Depends(require_admin)])
 def change_admin_pin(data: dict, db: Session = Depends(get_db)):
     """Change the admin PIN."""
     new_pin = data.get("pin", "")
@@ -875,7 +915,7 @@ def change_admin_pin(data: dict, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-@router.post("/stripe/connect")
+@router.post("/stripe/connect", dependencies=[Depends(require_organizer_or_admin)])
 def stripe_connect_start(db: Session = Depends(get_db)):
     """Create a Stripe Account Link for the organizer club to onboard via Connect."""
     import stripe
@@ -906,7 +946,7 @@ def stripe_connect_start(db: Session = Depends(get_db)):
     return {"url": link.url}
 
 
-@router.get("/stripe/status")
+@router.get("/stripe/status", dependencies=[Depends(require_organizer_or_admin)])
 def stripe_connect_status(db: Session = Depends(get_db)):
     """Return whether the organizer club has a connected Stripe account."""
     import stripe
@@ -928,7 +968,7 @@ def stripe_connect_status(db: Session = Depends(get_db)):
         return {"connected": False}
 
 
-@router.post("/stripe/disconnect")
+@router.post("/stripe/disconnect", dependencies=[Depends(require_organizer_or_admin)])
 def stripe_disconnect(db: Session = Depends(get_db)):
     """Remove the Stripe account link from the organizer club."""
     org_cfg = db.query(AppConfig).get("organizer_club_id")
@@ -942,7 +982,7 @@ def stripe_disconnect(db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-@router.get("/clubs/{club_id}/invoice-pdf")
+@router.get("/clubs/{club_id}/invoice-pdf", dependencies=[Depends(require_organizer_or_admin)])
 def club_invoice_pdf(club_id: int, db: Session = Depends(get_db)):
     """Download a PDF invoice for a single club."""
     from ..invoices import generate_invoice_pdf
@@ -956,7 +996,7 @@ def club_invoice_pdf(club_id: int, db: Session = Depends(get_db)):
                     headers={"Content-Disposition": f'attachment; filename="invoice_{name}.pdf"'})
 
 
-@router.get("/clubs/{club_id}/invoice-total")
+@router.get("/clubs/{club_id}/invoice-total", dependencies=[Depends(require_organizer_or_admin)])
 def club_invoice_total(club_id: int, db: Session = Depends(get_db)):
     """Return the total billable amount in cents for a club."""
     from ..invoices import _club_line_items, _meet_fees
@@ -968,7 +1008,7 @@ def club_invoice_total(club_id: int, db: Session = Depends(get_db)):
     return {"club_id": club_id, "total_cents": total}
 
 
-@router.post("/clubs/{club_id}/invoice")
+@router.post("/clubs/{club_id}/invoice", dependencies=[Depends(require_organizer_or_admin)])
 def send_club_invoice(club_id: int, db: Session = Depends(get_db)):
     """Create and send a Stripe invoice for a club on the organizer's connected account."""
     import stripe
@@ -1050,7 +1090,7 @@ def send_club_invoice(club_id: int, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/clubs/{club_id}/create-invoice")
+@router.post("/clubs/{club_id}/create-invoice", dependencies=[Depends(require_organizer_or_admin)])
 def create_club_invoice(club_id: int, db: Session = Depends(get_db)):
     """Create a Stripe draft invoice for a single club."""
     try:
@@ -1061,7 +1101,7 @@ def create_club_invoice(club_id: int, db: Session = Depends(get_db)):
         raise HTTPException(500, str(e))
 
 
-@router.get("/export")
+@router.get("/export", dependencies=[Depends(require_admin)])
 def export_lenex(db: Session = Depends(get_db)):
     """Download a zip bundling the registrations .lxf with the simulate-results
     helper scripts so coaches can exercise SPLASH end-to-end without manually

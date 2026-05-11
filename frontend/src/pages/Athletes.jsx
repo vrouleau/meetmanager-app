@@ -80,7 +80,7 @@ export default function Athletes({ role, clubId }) {
         {canViewAll ? (
           <select value={clubFilter} onChange={e => setClubFilter(e.target.value)}
                   className="border p-2 rounded">
-            {clubs.map(c => <option key={c.id} value={c.id}>{c.name} ({c.athlete_count}){isAdmin ? ` PIN:${c.pin}` : ''}</option>)}
+            {clubs.map(c => <option key={c.id} value={c.id}>{c.name} ({c.athlete_count})</option>)}
           </select>
         ) : (
           <span className="font-semibold">{clubs.find(c => String(c.id) === clubFilter)?.name}</span>

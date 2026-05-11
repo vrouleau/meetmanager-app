@@ -22,6 +22,7 @@ router = APIRouter(prefix="/api")
 
 MEET_STORAGE = Path(os.environ.get("MEET_STORAGE", "/app/data/meet.lxf"))
 _DEFAULT_ADMIN_PIN = os.environ.get("ADMIN_PIN", "000000")
+_BEST_TIME_MAX_AGE_MONTHS = int(os.environ.get("BEST_TIME_MAX_AGE_MONTHS", "18"))
 
 
 def _get_admin_pin(db: Session) -> str:
@@ -445,6 +446,38 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
     best = db.query(BestTime).filter(
         BestTime.athlete_id == athlete_id
     ).all()
+
+    # Expire best times older than BEST_TIME_MAX_AGE_MONTHS (or with no date)
+    if best:
+        from datetime import date as _d
+        import calendar as _cal
+        today = _d.today()
+        m = _BEST_TIME_MAX_AGE_MONTHS
+        cutoff_month = today.month - (m % 12)
+        cutoff_year = today.year - (m // 12)
+        if cutoff_month <= 0:
+            cutoff_month += 12
+            cutoff_year -= 1
+        cutoff = _d(cutoff_year, cutoff_month,
+                    min(today.day, _cal.monthrange(cutoff_year, cutoff_month)[1]))
+
+        from collections import defaultdict as _dd
+        by_style: dict[int, list] = _dd(list)
+        for b in best:
+            by_style[b.style_uid].append(b)
+
+        expired_styles = {
+            uid for uid, rows in by_style.items()
+            if any(r.recorded_on is None or r.recorded_on < cutoff for r in rows)
+        }
+        if expired_styles:
+            db.query(BestTime).filter(
+                BestTime.athlete_id == athlete_id,
+                BestTime.style_uid.in_(expired_styles),
+            ).delete(synchronize_session=False)
+            db.commit()
+            best = [b for b in best if b.style_uid not in expired_styles]
+
     best_map_lcm: dict[int, int] = {}
     best_map_scm: dict[int, int] = {}
     for b in best:

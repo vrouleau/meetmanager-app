@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import zipfile
+from datetime import date as _date
 from io import BytesIO
 from xml.etree import ElementTree as ET
 
@@ -48,9 +49,11 @@ def _find_or_create_athlete(db: Session, first: str, last: str, license: str, cl
 
 
 def _upsert_best_time(db: Session, athlete_id: int, style_uid: int,
-                      time_ms: int, course: str, source: str) -> bool:
+                      time_ms: int, course: str, source: str,
+                      recorded_on: _date | None = None) -> bool:
     """Upsert a BT row, only overwriting if the new time is faster.
-    Returns True when a row was inserted or improved."""
+    Returns True when a row was inserted or improved.
+    recorded_on is synced to the sibling course row so both LCM/SCM share one date."""
     existing = db.query(BestTime).filter(
         BestTime.athlete_id == athlete_id,
         BestTime.style_uid == style_uid,
@@ -60,16 +63,34 @@ def _upsert_best_time(db: Session, athlete_id: int, style_uid: int,
         if time_ms < existing.time_ms:
             existing.time_ms = time_ms
             existing.source = source
-            return True
-        return False
-    db.add(BestTime(
-        athlete_id=athlete_id,
-        style_uid=style_uid,
-        time_ms=time_ms,
-        course=course,
-        source=source,
-    ))
-    return True
+            if recorded_on is not None:
+                existing.recorded_on = recorded_on
+            improved = True
+        else:
+            improved = False
+    else:
+        db.add(BestTime(
+            athlete_id=athlete_id,
+            style_uid=style_uid,
+            time_ms=time_ms,
+            course=course,
+            source=source,
+            recorded_on=recorded_on,
+        ))
+        improved = True
+
+    # Sync recorded_on to the sibling course row so LCM and SCM share one date
+    if recorded_on is not None:
+        sibling_course = "SCM" if course == "LCM" else "LCM"
+        sibling = db.query(BestTime).filter(
+            BestTime.athlete_id == athlete_id,
+            BestTime.style_uid == style_uid,
+            BestTime.course == sibling_course,
+        ).first()
+        if sibling:
+            sibling.recorded_on = recorded_on
+
+    return improved
 
 
 def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
@@ -80,11 +101,22 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
 
     root = ET.fromstring(xml_bytes)
 
-    # Get course from MEET element
+    # Get course and date from MEET element
     meet_el = root.find(".//MEET")
     course = meet_el.get("course", "LCM") if meet_el is not None else "LCM"
     if course not in ("LCM", "SCM"):
         course = "LCM"  # treat SCY etc. as LCM
+    recorded_on: _date | None = None
+    if meet_el is not None:
+        for date_attr in ("startdate", "date"):
+            raw = meet_el.get(date_attr, "")
+            if raw:
+                try:
+                    recorded_on = _date.fromisoformat(raw[:10])
+                except ValueError:
+                    pass
+                if recorded_on:
+                    break
 
     # Build eventid -> style_uid map from the Lenex events
     event_style: dict[str, int] = {}
@@ -149,7 +181,7 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                 if not style_uid:
                     continue
                 if _upsert_best_time(db, athlete.id, style_uid,
-                                     min(times), course, source):
+                                     min(times), course, source, recorded_on):
                     updated += 1
 
     # Relay BT: each member of a team gets the team time recorded against the
@@ -184,7 +216,7 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                 continue
             best = min(times)
             for ath in roster:
-                if _upsert_best_time(db, ath.id, style_uid, best, course, source):
+                if _upsert_best_time(db, ath.id, style_uid, best, course, source, recorded_on):
                     updated += 1
 
     db.commit()

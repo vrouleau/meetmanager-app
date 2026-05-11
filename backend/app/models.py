@@ -107,6 +107,7 @@ class BestTime(Base):
     time_ms = Column(Integer, nullable=False)
     course = Column(String(3), nullable=False, default="LCM")  # LCM or SCM
     source = Column(String(100))
+    recorded_on = Column(Date, nullable=True)  # date of the source meet; shared across LCM/SCM for the same style
 
     athlete = relationship("Athlete", back_populates="best_times")
 

@@ -471,12 +471,12 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
             if any(r.recorded_on is None or r.recorded_on < cutoff for r in rows)
         }
         if expired_styles:
+            best = [b for b in best if b.style_uid not in expired_styles]
             db.query(BestTime).filter(
                 BestTime.athlete_id == athlete_id,
                 BestTime.style_uid.in_(expired_styles),
             ).delete(synchronize_session=False)
             db.commit()
-            best = [b for b in best if b.style_uid not in expired_styles]
 
     best_map_lcm: dict[int, int] = {}
     best_map_scm: dict[int, int] = {}

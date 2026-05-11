@@ -175,6 +175,7 @@ def write_lxf(course: str, events: list[dict], clubs: list[dict],
         "name": "Test Results Meet",
         "city": "Test City",
         "course": course,
+        "startdate": f"{AGE_DATE_YEAR - 1}-06-01",
     })
     ET.SubElement(meet, "AGEDATE", value=f"{AGE_DATE_YEAR}-12-31", type="DATE")
 

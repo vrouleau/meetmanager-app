@@ -157,7 +157,6 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                 athlete.gender = Gender.F if gender_str == "F" else Gender.M
                 if bd_str:
                     try:
-                        from datetime import date as _date
                         athlete.birthdate = _date.fromisoformat(bd_str)
                     except ValueError:
                         pass

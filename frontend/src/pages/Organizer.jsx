@@ -46,6 +46,15 @@ export default function Organizer() {
     } catch (e) { setMsg(e.response?.data?.detail || e.message || 'Error') }
   }
 
+  async function disconnectStripe() {
+    if (!confirm(lang === 'fr' ? 'Déconnecter Stripe ?' : 'Disconnect Stripe?')) return
+    try {
+      await api.post('/stripe/disconnect', {})
+      setStripeStatus({ connected: false })
+      setMsg(lang === 'fr' ? 'Stripe déconnecté' : 'Stripe disconnected')
+    } catch (e) { setMsg(e.message || 'Error') }
+  }
+
   async function uploadMeet(e) {
     const file = e.target.files[0]
     if (!file) return
@@ -98,6 +107,24 @@ export default function Organizer() {
     } catch (e) { setMsg(e.detail || e.message || 'Error') }
   }
 
+  async function downloadInvoice(club) {
+    setMsg(lang === 'fr' ? 'Génération du PDF...' : 'Generating PDF...')
+    try {
+      const res = await fetch(`/api/clubs/${club.id}/invoice-pdf`, {
+        headers: { 'X-Club-Pin': localStorage.getItem('pin') || '' }
+      })
+      if (!res.ok) throw new Error(`${res.status}`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `invoice_${club.name.replace(/\s+/g, '_')}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+      setMsg('')
+    } catch (e) { setMsg(e.message || 'Error') }
+  }
+
 
 
   const checkedCount = Object.values(checked).filter(Boolean).length
@@ -127,7 +154,13 @@ export default function Organizer() {
       <div className="mb-4 p-3 bg-purple-50 rounded text-sm flex items-center gap-3">
         <span className="font-semibold">{t.stripe_connect}:</span>
         {stripeStatus?.connected ? (
-          <span className="text-green-700 font-medium">✓ {t.stripe_connected}</span>
+          <>
+            <span className="text-green-700 font-medium">✓ {t.stripe_connected}</span>
+            <button onClick={disconnectStripe}
+              className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">
+              {t.stripe_disconnect_btn}
+            </button>
+          </>
         ) : (
           <button onClick={connectStripe}
             className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 text-sm">
@@ -194,6 +227,12 @@ export default function Organizer() {
                       <button onClick={() => sendInvoice(c)}
                         className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700">
                         {t.send_invoice_btn} ({formatMoney(clubTotals[c.id], meetInfo?.currency || 'CAD', lang)})
+                      </button>
+                    )}
+                    {(clubTotals[c.id] || 0) > 0 && !stripeStatus?.connected && (
+                      <button onClick={() => downloadInvoice(c)}
+                        className="bg-gray-600 text-white px-2 py-1 rounded text-xs hover:bg-gray-700">
+                        {t.download_invoice_btn} ({formatMoney(clubTotals[c.id], meetInfo?.currency || 'CAD', lang)})
                       </button>
                     )}
                   </td>

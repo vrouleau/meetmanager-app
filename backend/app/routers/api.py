@@ -16,7 +16,7 @@ from ..models import Club, Athlete, Event, Registration, BestTime, AppConfig, Ge
 from ..seed import seed_from_lxf
 from ..best_times import load_best_times
 from ..export import generate_lxf
-from ..invoices import create_invoice_for_club, create_invoices_for_all_clubs
+from ..invoices import create_invoice_for_club
 
 router = APIRouter(prefix="/api")
 
@@ -842,13 +842,179 @@ def change_admin_pin(data: dict, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-@router.post("/invoices")
-def export_invoices(db: Session = Depends(get_db)):
-    """Create a Stripe draft invoice for every club with billable fees."""
+@router.post("/stripe/connect")
+def stripe_connect_start(db: Session = Depends(get_db)):
+    """Create a Stripe Account Link for the organizer club to onboard via Connect."""
+    import stripe
+    stripe.api_key = os.environ.get("STRIPE_API_KEY")
+    if not stripe.api_key:
+        raise HTTPException(500, "STRIPE_API_KEY not configured")
+
+    org_cfg = db.query(AppConfig).get("organizer_club_id")
+    if not org_cfg:
+        raise HTTPException(400, "No organizer club set")
+    club = db.query(Club).get(int(org_cfg.value))
+    if not club:
+        raise HTTPException(404, "Organizer club not found")
+
+    # Create a new connected account if none exists
+    if not club.stripe_account_id:
+        account = stripe.Account.create(type="standard")
+        club.stripe_account_id = account.id
+        db.commit()
+
+    base_url = os.environ.get("APP_BASE_URL", "http://localhost:8001")
+    link = stripe.AccountLink.create(
+        account=club.stripe_account_id,
+        refresh_url=f"{base_url}/organizer?stripe=refresh",
+        return_url=f"{base_url}/organizer?stripe=success",
+        type="account_onboarding",
+    )
+    return {"url": link.url}
+
+
+@router.get("/stripe/status")
+def stripe_connect_status(db: Session = Depends(get_db)):
+    """Return whether the organizer club has a connected Stripe account."""
+    import stripe
+    org_cfg = db.query(AppConfig).get("organizer_club_id")
+    if not org_cfg:
+        return {"connected": False}
+    club = db.query(Club).get(int(org_cfg.value))
+    if not club or not club.stripe_account_id:
+        return {"connected": False}
+
+    # Verify account is fully onboarded
+    stripe.api_key = os.environ.get("STRIPE_API_KEY")
+    if not stripe.api_key:
+        return {"connected": False}
     try:
-        return create_invoices_for_all_clubs(db)
-    except RuntimeError as e:
-        raise HTTPException(500, str(e))
+        acct = stripe.Account.retrieve(club.stripe_account_id)
+        return {"connected": acct.charges_enabled, "account_id": club.stripe_account_id}
+    except Exception:
+        return {"connected": False}
+
+
+@router.post("/stripe/disconnect")
+def stripe_disconnect(db: Session = Depends(get_db)):
+    """Remove the Stripe account link from the organizer club."""
+    org_cfg = db.query(AppConfig).get("organizer_club_id")
+    if not org_cfg:
+        raise HTTPException(400, "No organizer club set")
+    club = db.query(Club).get(int(org_cfg.value))
+    if not club:
+        raise HTTPException(404, "Organizer club not found")
+    club.stripe_account_id = None
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/clubs/{club_id}/invoice-pdf")
+def club_invoice_pdf(club_id: int, db: Session = Depends(get_db)):
+    """Download a PDF invoice for a single club."""
+    from ..invoices import generate_invoice_pdf
+    try:
+        pdf = generate_invoice_pdf(db, club_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    club = db.query(Club).get(club_id)
+    name = club.name.replace(" ", "_") if club else "club"
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="invoice_{name}.pdf"'})
+
+
+@router.get("/clubs/{club_id}/invoice-total")
+def club_invoice_total(club_id: int, db: Session = Depends(get_db)):
+    """Return the total billable amount in cents for a club."""
+    from ..invoices import _club_line_items, _meet_fees
+    club = db.query(Club).get(club_id)
+    if not club:
+        raise HTTPException(404)
+    items = _club_line_items(db, club, _meet_fees(db))
+    total = sum(it["unit_cents"] * it["qty"] for it in items)
+    return {"club_id": club_id, "total_cents": total}
+
+
+@router.post("/clubs/{club_id}/invoice")
+def send_club_invoice(club_id: int, db: Session = Depends(get_db)):
+    """Create and send a Stripe invoice for a club on the organizer's connected account."""
+    import stripe
+    stripe.api_key = os.environ.get("STRIPE_API_KEY")
+    if not stripe.api_key:
+        raise HTTPException(500, "STRIPE_API_KEY not configured")
+
+    org_cfg = db.query(AppConfig).get("organizer_club_id")
+    if not org_cfg:
+        raise HTTPException(400, "No organizer club set")
+    org_club = db.query(Club).get(int(org_cfg.value))
+    if not org_club or not org_club.stripe_account_id:
+        raise HTTPException(400, "Organizer has no connected Stripe account")
+
+    club = db.query(Club).get(club_id)
+    if not club:
+        raise HTTPException(404, "Club not found")
+
+    from ..invoices import _club_line_items, _meet_fees, _meet_name
+    items = _club_line_items(db, club, _meet_fees(db))
+    if not items:
+        raise HTTPException(400, "No billable items for this club")
+
+    acct = org_club.stripe_account_id
+    meet_name = _meet_name(db)
+
+    # Find or create customer on the connected account
+    email = (club.admin_email or "").strip()
+    customer = None
+    if email:
+        existing = stripe.Customer.list(email=email, limit=1, stripe_account=acct)
+        if existing.data:
+            customer = existing.data[0]
+    if not customer:
+        customer = stripe.Customer.create(
+            name=club.name,
+            email=email or None,
+            metadata={"meetmanager_club_id": str(club.id)},
+            stripe_account=acct,
+        )
+
+    invoice = stripe.Invoice.create(
+        customer=customer.id,
+        auto_advance=False,
+        currency="cad",
+        collection_method="send_invoice",
+        days_until_due=30,
+        description=f"{meet_name} — Inscriptions",
+        metadata={"meetmanager_club_id": str(club.id), "meetmanager_meet": meet_name},
+        pending_invoice_items_behavior="exclude",
+        stripe_account=acct,
+    )
+
+    for it in items:
+        desc_parts = []
+        if it.get("event_number"):
+            desc_parts.append(f"#{it['event_number']}")
+        if it.get("event_name"):
+            desc_parts.append(it["event_name"])
+        if it.get("description"):
+            desc_parts.append(it["description"])
+        stripe.InvoiceItem.create(
+            customer=customer.id,
+            invoice=invoice.id,
+            currency="cad",
+            amount=it["unit_cents"] * it["qty"],
+            description=" — ".join(desc_parts) or "Inscription",
+            stripe_account=acct,
+        )
+
+    # Finalize and send
+    stripe.Invoice.finalize_invoice(invoice.id, stripe_account=acct)
+    stripe.Invoice.send_invoice(invoice.id, stripe_account=acct)
+
+    return {
+        "club": club.name,
+        "invoice_id": invoice.id,
+        "total_cents": sum(it["unit_cents"] * it["qty"] for it in items),
+    }
 
 
 @router.post("/clubs/{club_id}/create-invoice")

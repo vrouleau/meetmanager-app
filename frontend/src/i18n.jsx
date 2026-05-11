@@ -86,6 +86,13 @@ const translations = {
     currently_organized_by: "Currently organized by:",
     club_manager: "Club Manager",
     club_name_placeholder: "Club name",
+    stripe_connect: "Stripe Account",
+    stripe_connected: "Connected",
+    stripe_connect_btn: "Connect Stripe",
+    stripe_disconnect_btn: "Disconnect",
+    send_invoice_btn: "Send Invoice",
+    download_invoice_btn: "Download Invoice",
+    invoice: "Invoice",
   },
   fr: {
     athletes: "Athlètes",
@@ -172,6 +179,13 @@ const translations = {
     currently_organized_by: "Actuellement organisé par :",
     club_manager: "Gestion des clubs",
     club_name_placeholder: "Nom du club",
+    stripe_connect: "Compte Stripe",
+    stripe_connected: "Connecté",
+    stripe_connect_btn: "Connecter Stripe",
+    stripe_disconnect_btn: "Déconnecter",
+    send_invoice_btn: "Envoyer la facture",
+    download_invoice_btn: "Télécharger la facture",
+    invoice: "Facture",
   },
 }
 

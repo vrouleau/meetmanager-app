@@ -75,6 +75,11 @@ def auth(data: dict, request: Request, db: Session = Depends(get_db)):
     if not club:
         print(f"[LOGIN] FAILED pin={pin} from {ip}")
         raise HTTPException(401, "Invalid PIN")
+    # Check if this club is the designated organizer
+    org_cfg = db.query(AppConfig).get("organizer_club_id")
+    if org_cfg and org_cfg.value == str(club.id):
+        print(f"[LOGIN] organizer club=\"{club.name}\" from {ip}")
+        return {"role": "organizer", "club_id": club.id, "club_name": club.name}
     print(f"[LOGIN] coach club=\"{club.name}\" from {ip}")
     return {"role": "coach", "club_id": club.id, "club_name": club.name}
 
@@ -606,6 +611,12 @@ def _update_exception(db: Session, athlete_id: int):
 def _check_closure(db: Session, pin: str = ""):
     if pin == _get_admin_pin(db):
         return
+    # Organizer also bypasses closure
+    club = db.query(Club).filter(Club.pin == pin).first()
+    if club:
+        org_cfg = db.query(AppConfig).get("organizer_club_id")
+        if org_cfg and org_cfg.value == str(club.id):
+            return
     cfg = db.query(AppConfig).get("closure_date")
     if cfg and cfg.value:
         from datetime import date
@@ -613,13 +624,29 @@ def _check_closure(db: Session, pin: str = ""):
             raise HTTPException(403, "Inscriptions fermées / Entries closed")
 
 
+def _caller_club_id(db: Session, pin: str) -> int | None:
+    """Return the club_id of the caller, or None if admin."""
+    if pin == _get_admin_pin(db):
+        return None  # admin can edit anything
+    club = db.query(Club).filter(Club.pin == pin).first()
+    return club.id if club else None
+
+
 @router.post("/registrations")
 def create_registration(data: dict, request: Request, db: Session = Depends(get_db)):
-    _check_closure(db, request.headers.get("X-Club-Pin", ""))
+    pin = request.headers.get("X-Club-Pin", "")
+    _check_closure(db, pin)
     athlete_id = data["athlete_id"]
     event_id = data["event_id"]
     age_code = data.get("age_code", "OPEN")
     entry_time_ms = data.get("entry_time_ms")
+
+    # Ownership check: non-admin can only register own club's athletes
+    caller_club = _caller_club_id(db, pin)
+    if caller_club is not None:
+        athlete = db.query(Athlete).get(athlete_id)
+        if not athlete or athlete.club_id != caller_club:
+            raise HTTPException(403, "Cannot register athletes from another club")
 
     existing = db.query(Registration).filter(
         Registration.athlete_id == athlete_id,
@@ -647,10 +674,17 @@ def create_registration(data: dict, request: Request, db: Session = Depends(get_
 
 @router.delete("/registrations/{reg_id}")
 def delete_registration(reg_id: int, request: Request, db: Session = Depends(get_db)):
-    _check_closure(db, request.headers.get("X-Club-Pin", ""))
+    pin = request.headers.get("X-Club-Pin", "")
+    _check_closure(db, pin)
     reg = db.query(Registration).get(reg_id)
     if not reg:
         raise HTTPException(404)
+    # Ownership check
+    caller_club = _caller_club_id(db, pin)
+    if caller_club is not None:
+        athlete = db.query(Athlete).get(reg.athlete_id)
+        if not athlete or athlete.club_id != caller_club:
+            raise HTTPException(403, "Cannot modify registrations from another club")
     athlete_id = reg.athlete_id
     db.delete(reg)
     db.commit()
@@ -723,11 +757,18 @@ def status(db: Session = Depends(get_db)):
 
 
 @router.delete("/registrations")
-def flush_registrations(db: Session = Depends(get_db)):
-    """Delete all registrations (keeps best times)."""
-    count = db.query(Registration).delete()
+def flush_meet(db: Session = Depends(get_db)):
+    """Flush meet: delete registrations, events, meet config, and organizer designation."""
+    reg_count = db.query(Registration).delete()
+    db.query(Event).delete()
+    for key in ("meet_filename", "meet_uploaded_at", "meet_name", "meet_course",
+                "meet_masters", "meet_currency", "meet_fees_json", "closure_date",
+                "organizer_club_id"):
+        cfg = db.query(AppConfig).get(key)
+        if cfg:
+            db.delete(cfg)
     db.commit()
-    return {"deleted": count}
+    return {"deleted": reg_count}
 
 
 @router.post("/clubs/regenerate-pins")
@@ -739,6 +780,51 @@ def regenerate_pins(db: Session = Depends(get_db)):
         club.pin = f"{random.randint(100000, 999999)}"
     db.commit()
     return {"regenerated": len(clubs)}
+
+
+@router.post("/organizer/clubs/invite-all")
+def invite_all_clubs(data: dict, request: Request, db: Session = Depends(get_db)):
+    """Send PIN invitation email to all clubs that have an admin_email set."""
+    lang = data.get("lang", "fr")
+    clubs = db.query(Club).filter(Club.admin_email != None, Club.admin_email != "").all()
+    sent = 0
+    errors = []
+    for club in clubs:
+        try:
+            send_pin(club.id, {"lang": lang}, db)
+            sent += 1
+        except Exception as e:
+            errors.append({"club": club.name, "error": str(e)})
+    return {"sent": sent, "errors": errors}
+
+
+@router.get("/admin/organizer")
+def get_organizer(db: Session = Depends(get_db)):
+    """Return current organizer club info."""
+    cfg = db.query(AppConfig).get("organizer_club_id")
+    if not cfg:
+        return {"club_id": None, "club_name": None}
+    club = db.query(Club).get(int(cfg.value))
+    if not club:
+        return {"club_id": None, "club_name": None}
+    return {"club_id": club.id, "club_name": club.name}
+
+
+@router.post("/admin/set-organizer")
+def set_organizer(data: dict, db: Session = Depends(get_db)):
+    """Designate a club as the meet organizer."""
+    club_id = data.get("club_id")
+    if club_id is None:
+        raise HTTPException(400, "club_id required")
+    if not db.query(Club).get(club_id):
+        raise HTTPException(404, "Club not found")
+    cfg = db.query(AppConfig).get("organizer_club_id")
+    if cfg:
+        cfg.value = str(club_id)
+    else:
+        db.add(AppConfig(key="organizer_club_id", value=str(club_id)))
+    db.commit()
+    return {"ok": True, "organizer_club_id": club_id}
 
 
 @router.post("/admin/change-pin")

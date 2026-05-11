@@ -13,6 +13,7 @@ export default function Athletes({ role, clubId }) {
   const [showAddClub, setShowAddClub] = useState(false)
   const [newClub, setNewClub] = useState('')
   const isAdmin = role === 'admin'
+  const canViewAll = role === 'admin' || role === 'organizer'
 
   useEffect(() => {
     api.get('/clubs').then(r => {
@@ -91,17 +92,17 @@ export default function Athletes({ role, clubId }) {
   return (
     <div className="p-4 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">
-        {!isAdmin && clubs.find(c => String(c.id) === clubFilter)?.name
+        {!canViewAll && clubs.find(c => String(c.id) === clubFilter)?.name
           ? `${clubs.find(c => String(c.id) === clubFilter).name} — ${t.athletes}`
           : t.athletes}
       </h1>
 
       {/* Club selector */}
       <div className="flex gap-2 mb-4 items-center">
-        {isAdmin ? (
+        {canViewAll ? (
           <select value={clubFilter} onChange={e => setClubFilter(e.target.value)}
                   className="border p-2 rounded">
-            {clubs.map(c => <option key={c.id} value={c.id}>{c.name} ({c.athlete_count}) PIN:{c.pin}</option>)}
+            {clubs.map(c => <option key={c.id} value={c.id}>{c.name} ({c.athlete_count}){isAdmin ? ` PIN:${c.pin}` : ''}</option>)}
           </select>
         ) : (
           <span className="font-semibold">{clubs.find(c => String(c.id) === clubFilter)?.name}</span>

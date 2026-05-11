@@ -5,52 +5,29 @@ import { BUILD_TIMESTAMP } from '../buildInfo'
 
 export default function Admin() {
   const [status, setStatus] = useState(null)
-  const [meetInfo, setMeetInfo] = useState(null)
   const [clubs, setClubs] = useState([])
   const [selectedClubId, setSelectedClubId] = useState('')
-  const [emailDraft, setEmailDraft] = useState('')
+  const [organizer, setOrganizer] = useState(null)
+  const [newClubName, setNewClubName] = useState('')
+  const [newClubEmail, setNewClubEmail] = useState('')
   const [msg, setMsg] = useState('')
   const { t, lang } = useLang()
 
-  const selectedClub = clubs.find(c => String(c.id) === String(selectedClubId)) || null
-
-  useEffect(() => { loadStatus(); loadMeetInfo(); loadClubs() }, [])
+  useEffect(() => { loadStatus(); loadClubs(); loadOrganizer() }, [])
 
   async function loadStatus() {
     const r = await api.get('/status')
     setStatus(r.data)
   }
 
-  async function loadMeetInfo() {
-    const r = await api.get('/meet-info')
-    setMeetInfo(r.data)
-  }
-
   async function loadClubs() {
     const r = await api.get('/clubs')
     setClubs(r.data)
-    setEmailDraft(prev => {
-      const sel = r.data.find(c => String(c.id) === String(selectedClubId))
-      return sel ? (sel.admin_email || '') : prev
-    })
   }
 
-  async function uploadMeet(e) {
-    const file = e.target.files[0]
-    if (!file) return
-    if (meetInfo?.filename && !confirm(t.confirm_replace_meet)) {
-      e.target.value = ''
-      return
-    }
-    const fd = new FormData()
-    fd.append('file', file)
-    setMsg('Uploading meet structure...')
-    const r = await api.post('/upload/meet', fd)
-    setMsg(`Done: ${r.data.events_loaded} events loaded from ${r.data.filename}`)
-    e.target.value = ''
-    loadStatus()
-    loadMeetInfo()
-    loadClubs()
+  async function loadOrganizer() {
+    const r = await api.get('/admin/organizer')
+    setOrganizer(r.data)
   }
 
   async function uploadEntries(e) {
@@ -117,6 +94,36 @@ export default function Admin() {
     }
   }
 
+  async function addClub() {
+    if (!newClubName.trim()) return
+    try {
+      await api.post('/clubs', { name: newClubName.trim(), admin_email: newClubEmail.trim() || undefined })
+      setNewClubName('')
+      setNewClubEmail('')
+      loadClubs()
+      loadStatus()
+      setMsg(lang === 'fr' ? 'Club ajouté' : 'Club added')
+    } catch (e) { setMsg(e.detail || e.message || 'Error') }
+  }
+
+  async function deleteClub(club) {
+    const message = club.athlete_count > 0
+      ? t.confirm_delete_club_with_athletes.replace('%name%', club.name).replace('%n%', club.athlete_count)
+      : t.confirm_delete_club.replace('%name%', club.name)
+    if (!confirm(message)) return
+    try {
+      await api.delete(`/clubs/${club.id}`)
+      loadClubs()
+      loadStatus()
+      setMsg(`${club.name} ${lang === 'fr' ? 'supprimé' : 'deleted'}`)
+    } catch (e) { setMsg(e.detail || e.message || 'Error') }
+  }
+
+  async function updateEmail(club, email) {
+    await api.put(`/clubs/${club.id}`, { admin_email: email })
+    loadClubs()
+  }
+
   return (
     <div className="p-4 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">{t.admin}</h1>
@@ -128,42 +135,7 @@ export default function Admin() {
         </div>
       )}
 
-      {meetInfo && (
-        <div className="mb-4 p-3 bg-blue-50 rounded text-sm">
-          <strong>{t.meet}:</strong>{' '}
-          {meetInfo.filename
-            ? <>
-                <strong>{meetInfo.meet_name || meetInfo.filename}</strong>
-                {' '}— {({'LCM':'50m','SCM':'25m'})[meetInfo.course] || meetInfo.course || '?'} — {meetInfo.masters ? 'Masters' : 'No Masters'}
-                {' '}— {meetInfo.events} {t.events}
-                <br/><span className="text-gray-500">({meetInfo.filename}, {t.uploaded} {new Date(meetInfo.uploaded_at + 'Z').toLocaleString()})</span>
-              </>
-            : <span className="text-red-600">{t.no_meet}</span>}
-        </div>
-      )}
-
-      <FeeSummary meetInfo={meetInfo} t={t} lang={lang} />
-
-      {/* Closure date */}
-      <div className="mb-4 p-3 bg-yellow-50 rounded text-sm flex items-center gap-3">
-        <label className="font-semibold whitespace-nowrap">{lang === 'fr' ? 'Date limite d\'inscription' : 'Entry closure date'}:</label>
-        <input type="date" className="border p-1 rounded"
-          defaultValue={meetInfo?.closure_date || ''}
-          onBlur={async e => {
-            await api.put('/closure-date', { closure_date: e.target.value })
-            loadMeetInfo()
-            setMsg(lang === 'fr' ? 'Date limite enregistrée' : 'Closure date saved')
-          }} />
-        {meetInfo?.closure_date && <span className="text-gray-600">{new Date(meetInfo.closure_date + 'T00:00:00').toLocaleDateString()}</span>}
-      </div>
-
       <div className="space-y-4">
-        <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">{t.upload_meet}</h2>
-          <p className="text-sm text-gray-600 mb-2">{t.upload_meet_desc}</p>
-          <input type="file" accept=".lxf" onChange={uploadMeet} />
-        </div>
-
         <div className="border p-4 rounded">
           <h2 className="font-semibold mb-2">{t.upload_lxf}</h2>
           <p className="text-sm text-gray-600 mb-2">{t.upload_lxf_desc}</p>
@@ -218,167 +190,104 @@ export default function Admin() {
         </div>
 
         <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">{t.flush_reg}</h2>
-          <p className="text-sm text-gray-600 mb-2">{t.flush_reg_desc}</p>
+          <h2 className="font-semibold mb-2">{t.flush_meet}</h2>
+          <p className="text-sm text-gray-600 mb-2">{t.flush_meet_desc}</p>
           <button onClick={async () => {
-            if (!confirm('Delete ALL registrations? This cannot be undone.')) return
+            if (!confirm(t.confirm_flush_meet)) return
             const r = await api.delete('/registrations')
-            setMsg(`Flushed ${r.data.deleted} registrations`)
+            setMsg(`${t.flush_meet}: ${r.data.deleted} registrations deleted`)
             loadStatus()
+            loadOrganizer()
           }} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
-            Flush Registrations
+            {t.flush_meet}
           </button>
+        </div>
+
+        {/* Set Meet Organizer */}
+        <div className="border p-4 rounded">
+          <h2 className="font-semibold mb-2">{t.set_organizer_title}</h2>
+          {organizer?.club_name && (
+            <p className="text-sm mb-2 text-purple-700 font-medium">
+              {t.currently_organized_by} <strong>{organizer.club_name}</strong>
+            </p>
+          )}
+          {clubs.length > 0 && (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <select
+                className="border p-2 rounded sm:w-64"
+                value={selectedClubId}
+                onChange={e => setSelectedClubId(e.target.value)}>
+                <option value="">{lang === 'fr' ? '— Choisir un club —' : '— Select a club —'}</option>
+                {clubs.map(club => (
+                  <option key={club.id} value={club.id}>{club.name}</option>
+                ))}
+              </select>
+              {selectedClubId && (
+                <button className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+                  onClick={async () => {
+                    const club = clubs.find(c => String(c.id) === String(selectedClubId))
+                    try {
+                      await api.post('/admin/set-organizer', { club_id: Number(selectedClubId) })
+                      setMsg(`${club?.name} ${t.set_as_organizer_done}`)
+                      loadOrganizer()
+                    } catch (e) { setMsg(e.detail || e.message || 'Error') }
+                  }}>
+                  {t.set_as_organizer}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Club Manager */}
+        <div className="border p-4 rounded">
+          <h2 className="font-semibold mb-2">{t.club_manager}</h2>
+          <div className="max-h-72 overflow-y-auto border rounded mb-3">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b bg-gray-50">
+                <th className="p-2 text-left">{t.club}</th>
+                <th className="p-2 text-left">Email</th>
+                <th className="p-2 w-20"></th>
+              </tr></thead>
+              <tbody>
+                {clubs.map(c => (
+                  <tr key={c.id} className="border-b hover:bg-gray-50">
+                    <td className="p-2">{c.name} <span className="text-xs text-gray-400">({c.athlete_count})</span></td>
+                    <td className="p-2">
+                      <input type="email" className="border p-1 rounded w-full text-sm"
+                        defaultValue={c.admin_email}
+                        onBlur={e => { if (e.target.value !== c.admin_email) updateEmail(c, e.target.value) }}
+                        placeholder="email@example.com" />
+                    </td>
+                    <td className="p-2 text-center">
+                      <button onClick={() => deleteClub(c)}
+                        className="text-red-600 hover:text-red-800 text-xs font-medium">
+                        {t.delete}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex gap-2">
+            <input type="text" className="border p-2 rounded flex-1" placeholder={t.club_name_placeholder}
+              value={newClubName} onChange={e => setNewClubName(e.target.value)} />
+            <input type="email" className="border p-2 rounded flex-1" placeholder="Email"
+              value={newClubEmail} onChange={e => setNewClubEmail(e.target.value)} />
+            <button onClick={addClub} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+              {t.add}
+            </button>
+          </div>
         </div>
       </div>
 
       {msg && <p className="mt-4 text-green-700">{msg}</p>}
 
-      {/* Club email + Send PIN */}
-      {clubs.length > 0 && (
-        <div className="border p-4 rounded mt-4">
-          <h2 className="font-semibold mb-2">{t.team_invites || 'Team Invites'}</h2>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <select
-              className="border p-2 rounded sm:w-64"
-              value={selectedClubId}
-              onChange={e => {
-                const id = e.target.value
-                setSelectedClubId(id)
-                const club = clubs.find(c => String(c.id) === String(id))
-                setEmailDraft(club?.admin_email || '')
-              }}>
-              <option value="">{lang === 'fr' ? '— Choisir un club —' : '— Select a club —'}</option>
-              {clubs.map(club => (
-                <option key={club.id} value={club.id}>{club.name}</option>
-              ))}
-            </select>
-            {selectedClub && (
-              <>
-                <input
-                  className="border p-2 rounded flex-1"
-                  type="email"
-                  value={emailDraft}
-                  onChange={e => setEmailDraft(e.target.value)}
-                  onBlur={async () => {
-                    if (emailDraft !== (selectedClub.admin_email || '')) {
-                      await api.put(`/clubs/${selectedClub.id}`, { admin_email: emailDraft })
-                      loadClubs()
-                    }
-                  }}
-                  placeholder="coach@example.com" />
-                <button className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                  onClick={async () => {
-                    if (emailDraft !== (selectedClub.admin_email || '')) {
-                      await api.put(`/clubs/${selectedClub.id}`, { admin_email: emailDraft })
-                    }
-                    if (!emailDraft) { setMsg('Set email first'); return }
-                    try {
-                      const r = await api.post(`/clubs/${selectedClub.id}/send-pin`, { lang })
-                      setMsg(r.data.message || 'Email sent!')
-                    } catch (e) {
-                      setMsg(e.detail || e.message || 'Error sending email')
-                    }
-                    loadClubs()
-                  }}>
-                  Send PIN
-                </button>
-                <button className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                  onClick={async () => {
-                    setMsg('Creating Stripe draft invoice...')
-                    try {
-                      const r = await api.post(`/clubs/${selectedClub.id}/create-invoice`, {})
-                      setMsg(`Draft invoice created: ${r.data.invoice_id}`)
-                    } catch (e) {
-                      setMsg(e.detail || e.message || 'Error creating invoice')
-                    }
-                  }}>
-                  {t.create_invoice || 'Create Invoice'}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
       <footer className="mt-8 pt-4 border-t text-xs text-gray-400 text-center">
         Source : <a href="https://github.com/vrouleau/meetmanager-app" target="_blank" rel="noopener" className="underline">github.com/vrouleau/meetmanager-app</a>
         {' '}— build : {BUILD_TIMESTAMP}
       </footer>
-    </div>
-  )
-}
-
-const FEE_TYPE_LABEL = {
-  CLUB: 'fee_per_club',
-  ATHLETE: 'fee_per_athlete',
-  RELAY: 'fee_per_relay',
-  TEAM: 'fee_per_team',
-  LATEFEE: 'fee_late',
-  LSCMEETFEE: 'fee_lsc',
-}
-
-function formatMoney(cents, currency, lang) {
-  const amount = (cents || 0) / 100
-  try {
-    return new Intl.NumberFormat(lang === 'fr' ? 'fr-CA' : 'en-CA', {
-      style: 'currency',
-      currency: currency || 'CAD',
-    }).format(amount)
-  } catch {
-    return `${amount.toFixed(2)} ${currency || ''}`.trim()
-  }
-}
-
-function FeeSummary({ meetInfo, t, lang }) {
-  if (!meetInfo) return null
-  const currency = meetInfo.currency || 'CAD'
-  const meetFees = meetInfo.meet_fees || {}
-  const eventFees = (meetInfo.event_fees || []).filter(e => (e.fee_cents || 0) > 0)
-  const meetFeeEntries = Object.entries(meetFees)
-  const hasMeet = !!meetInfo.filename
-
-  return (
-    <div className="mb-4 border rounded p-3 bg-gray-50">
-      <h2 className="font-semibold mb-2">{t.fee_summary} {currency ? <span className="text-xs text-gray-500">({currency})</span> : null}</h2>
-      <div className="h-56 overflow-y-auto border bg-white rounded p-2 text-sm font-mono whitespace-pre">
-        {!hasMeet ? (
-          <span className="text-gray-500">{t.fee_no_meet}</span>
-        ) : (
-          <>
-            <div className="font-sans font-semibold text-gray-700 mb-1">{t.fee_meet_level}</div>
-            {meetFeeEntries.length === 0 ? (
-              <div className="font-sans text-gray-500 mb-2">{t.fee_none_meet_level}</div>
-            ) : (
-              <div className="mb-2">
-                {meetFeeEntries.map(([type, cents]) => {
-                  const labelKey = FEE_TYPE_LABEL[type]
-                  const label = labelKey ? t[labelKey] : type
-                  return (
-                    <div key={type}>
-                      {label.padEnd(22, ' ')}{formatMoney(cents, currency, lang)}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            <div className="font-sans font-semibold text-gray-700 mb-1">{t.fee_per_event}</div>
-            {eventFees.length === 0 ? (
-              <div className="font-sans text-gray-500">{t.fee_none_event}</div>
-            ) : (
-              eventFees.map((e, i) => {
-                const num = e.event_number != null ? `#${String(e.event_number).padStart(3, ' ')}` : '   '
-                const name = (e.style_name || '').slice(0, 40).padEnd(40, ' ')
-                return (
-                  <div key={i}>
-                    {num}  {name}{formatMoney(e.fee_cents, currency, lang)}
-                  </div>
-                )
-              })
-            )}
-          </>
-        )}
-      </div>
     </div>
   )
 }

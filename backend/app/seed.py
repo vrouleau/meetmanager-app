@@ -23,10 +23,16 @@ def parse_lxf(file_bytes: bytes) -> list[dict]:
     for meet in root.iter("MEET"):
         for clubs_el in meet.iter("CLUBS"):
             for club_el in clubs_el.findall("CLUB"):
+                # Extract email from CONTACT element if present
+                email = ""
+                contact_el = club_el.find("CONTACT")
+                if contact_el is not None:
+                    email = contact_el.get("email", "") or contact_el.get("e-mail", "")
                 club_info = {
                     "name": club_el.get("name", ""),
                     "code": club_el.get("code", ""),
                     "nation": club_el.get("nation", ""),
+                    "email": email,
                     "athletes": [],
                 }
                 for ath_el in club_el.iter("ATHLETE"):
@@ -59,10 +65,15 @@ def seed_from_lxf(db: Session, file_bytes: bytes) -> dict:
         if not club:
             import random
             pin = f"{random.randint(100000, 999999)}"
-            club = Club(name=cd["name"], code=cd["code"], nation=cd["nation"], pin=pin)
+            club = Club(name=cd["name"], code=cd["code"], nation=cd["nation"], pin=pin,
+                        admin_email=cd.get("email") or None)
             db.add(club)
             db.flush()
             clubs_added += 1
+        else:
+            # Set email from Lenex if DB email is empty
+            if not club.admin_email and cd.get("email"):
+                club.admin_email = cd["email"]
 
         for ad in cd["athletes"]:
             existing = db.query(Athlete).filter(

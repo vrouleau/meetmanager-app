@@ -7,6 +7,7 @@ import Login from './pages/Login'
 import Athletes from './pages/Athletes'
 import Register from './pages/Register'
 import Admin from './pages/Admin'
+import Organizer from './pages/Organizer'
 import Secret from './pages/Secret'
 
 function AppInner() {
@@ -40,11 +41,15 @@ function AppInner() {
     </BrowserRouter>
   )
 
+  const canOrganizer = auth.role === 'admin' || auth.role === 'organizer'
+  const canAdmin = auth.role === 'admin'
+
   return (
     <BrowserRouter>
       <nav className="bg-gray-800 text-white p-3 flex gap-4 items-center">
         <Link to="/" className="hover:underline">{t.athletes}</Link>
-        {auth.role === 'admin' && <Link to="/admin" className="hover:underline">{t.admin}</Link>}
+        {canOrganizer && <Link to="/organizer" className="hover:underline">{t.organizer}</Link>}
+        {canAdmin && <Link to="/admin" className="hover:underline">{t.admin}</Link>}
         <div className="flex-1" />
         {meetName && <span className="font-semibold bg-blue-600 px-2 py-1 rounded text-sm">{meetName}</span>}
         <button onClick={toggle} className="text-xs bg-gray-600 px-2 py-1 rounded">
@@ -56,7 +61,8 @@ function AppInner() {
       <Routes>
         <Route path="/" element={<Athletes role={auth.role} clubId={auth.club_id} />} />
         <Route path="/athletes/:id/register" element={<Register />} />
-        {auth.role === 'admin' && <Route path="/admin" element={<Admin />} />}
+        {canOrganizer && <Route path="/organizer" element={<Organizer />} />}
+        {canAdmin && <Route path="/admin" element={<Admin />} />}
         <Route path="/secret/:token" element={<Secret />} />
       </Routes>
     </BrowserRouter>

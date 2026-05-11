@@ -132,6 +132,7 @@ export default function Organizer() {
 
 
   const checkedCount = Object.values(checked).filter(Boolean).length
+  const closurePassed = meetInfo?.closure_date && new Date() > new Date(meetInfo.closure_date + 'T23:59:59')
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
@@ -231,7 +232,7 @@ export default function Organizer() {
             </tr></thead>
             <tbody>
               {clubs.map(c => (
-                <tr key={c.id} className="border-b hover:bg-gray-50">
+                <tr key={c.id} className={`border-b ${closurePassed ? 'opacity-50' : 'hover:bg-gray-50'}`}>
                   <td className="p-2"><input type="checkbox" checked={!!checked[c.id]}
                     onChange={e => setChecked(prev => ({...prev, [c.id]: e.target.checked}))} /></td>
                   <td className="p-2">{c.name}</td>
@@ -239,7 +240,8 @@ export default function Organizer() {
                   <td className="p-2">
                     {(clubTotals[c.id] || 0) > 0 && stripeStatus?.connected && (
                       <button onClick={() => sendInvoice(c)}
-                        className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700">
+                        disabled={!closurePassed}
+                        className={`px-2 py-1 rounded text-xs text-white ${closurePassed ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'}`}>
                         {t.send_invoice_btn} ({formatMoney(clubTotals[c.id], meetInfo?.currency || 'CAD', lang)})
                       </button>
                     )}

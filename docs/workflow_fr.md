@@ -26,6 +26,23 @@
 
 ---
 
+## Liste de vérification SPLASH (avant d'exporter l'invitation)
+
+Avant d'exporter le fichier d'invitation `.lxf` depuis SPLASH, vérifier que les champs suivants sont bien configurés. Des valeurs manquantes ou incorrectes causent des échecs silencieux à l'importation — tarifs erronés, épreuves sans groupes d'âge, meilleurs temps qui ne s'affichent jamais, etc.
+
+| Paramètre SPLASH | Ce qui échoue si absent |
+|---|---|
+| Nom de la compétition | Affiché dans toute l'interface et stocké dans la configuration |
+| Type de bassin (LCM / SCM) | Par défaut LCM ; une valeur erronée place les temps d'inscription dans la mauvaise colonne |
+| Indicateur Masters | Les épreuves et la catégorie Masters sont masquées pour tous les athlètes |
+| Types et montants des frais | Les postes de facturation sont absents ou à zéro |
+| Devise des frais | La devise de la facture reste vide |
+| Frais par épreuve sur les épreuves de chronométrage | Les lignes de facturation par inscription sont à zéro |
+| Swimstyle ID sur chaque épreuve | L'épreuve ne peut pas être liée aux meilleurs temps ; la colonne reste vide |
+| Groupes d'âge sur chaque épreuve | La liste déroulante de catégorie n'a aucune option valide pour l'épreuve |
+
+---
+
 ## Étape 3 — Exporter l'invitation depuis SPLASH
 
 ![Exporter l'invitation depuis SPLASH](assets/1_export_invitation.png)

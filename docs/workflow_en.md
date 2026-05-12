@@ -26,6 +26,23 @@
 
 ---
 
+## SPLASH Configuration Checklist (before exporting the invitation)
+
+Before exporting the invitation `.lxf` from SPLASH, verify that the following fields are set. Missing or incorrect values cause silent failures on import — wrong fees, events without age groups, best times that never fill in, etc.
+
+| SPLASH setting | What breaks if missing |
+|---|---|
+| Meet name | Displayed throughout the UI and stored in app config |
+| Pool type (LCM / SCM) | Defaults to LCM; wrong value means entry times show in the wrong column |
+| Masters flag | Masters events and category are hidden for all athletes |
+| Fee types and amounts | Invoice items are missing or zero |
+| Fee currency | Invoice currency defaults to nothing |
+| Per-event fees on timing events | Per-entry invoice lines are zero |
+| Swimstyle ID on every event | Event cannot be linked to best times; best time column stays empty |
+| Age groups on every event | Age category dropdown has no valid options for the event |
+
+---
+
 ## Step 3 — Export the Meet Invitation from SPLASH
 
 ![Export invitation from SPLASH](assets/1_export_invitation.png)

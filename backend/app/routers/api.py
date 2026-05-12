@@ -1214,6 +1214,7 @@ def merge_clubs(data: dict, db: Session = Depends(get_db)):
                 db.delete(ath)
 
         db.flush()
+        db.expire(from_club)  # force reload so SQLAlchemy doesn't SET NULL on already-moved/deleted athletes
         db.delete(from_club)
         merged += 1
 

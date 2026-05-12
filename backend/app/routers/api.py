@@ -504,7 +504,7 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
 
         expired_styles = {
             uid for uid, rows in by_style.items()
-            if any(r.recorded_on is None or r.recorded_on < cutoff for r in rows)
+            if any(r.recorded_on is not None and r.recorded_on < cutoff for r in rows)
         }
         if expired_styles:
             best = [b for b in best if b.style_uid not in expired_styles]

@@ -121,7 +121,6 @@ Before exporting any file from SPLASH, make sure the fields below are set. Missi
 | Fee types and amounts | Invoice items are missing or zero |
 | Fee currency | Invoice currency defaults to nothing |
 | Per-event fees on timing events | Per-entry invoice lines are zero |
-| Swimstyle ID on every event | Event cannot be linked to best times; best time column stays empty |
 | Age groups on every event | Age category dropdown has no valid options for the event |
 
 ### Entries file

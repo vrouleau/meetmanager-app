@@ -1,0 +1,32 @@
+\usepackage[T1]{fontenc}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{microtype}
+\definecolor{primary}{RGB}{30,64,175}
+\definecolor{rule}{RGB}{180,198,240}
+\titleformat{\section}
+  {\Large\bfseries\color{primary}}
+  {}{0em}{}
+  [\vspace{-1ex}{\color{rule}\rule{\textwidth}{1.5pt}}\vspace{0.5ex}]
+\titleformat{\subsection}
+  {\large\bfseries\color{primary}}
+  {}{0em}{}
+\titleformat{\subsubsection}
+  {\normalsize\bfseries}
+  {}{0em}{}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textit{Meet Manager}}
+\fancyhead[R]{\small\textit{\nouppercase{\leftmark}}}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\setlength{\headheight}{14pt}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, urlcolor=primary, linkcolor=primary}

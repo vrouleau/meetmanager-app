@@ -1,95 +1,154 @@
+---
+title: "Meet Manager — Quick Start Workflow"
+date: "2026"
+mainfont: "Lato"
+monofont: "Noto Mono"
+fontsize: 11pt
+geometry: "margin=2.5cm"
+colorlinks: true
+urlcolor: "NavyBlue"
+linkcolor: "NavyBlue"
+header-includes:
+  - \usepackage{fancyhdr}
+  - \pagestyle{fancy}
+  - \fancyhf{}
+  - \fancyhead[L]{\textit{Meet Manager}}
+  - \fancyhead[R]{\textit{Quick Start Workflow}}
+  - \fancyfoot[C]{\thepage}
+  - \usepackage{titlesec}
+  - \usepackage{xcolor}
+  - \definecolor{primary}{RGB}{30,64,175}
+  - \titleformat{\section}{\Large\bfseries\color{primary}}{}{0em}{}[\vspace{-0.5ex}\rule{\textwidth}{0.4pt}]
+  - \titleformat{\subsection}{\normalsize\bfseries}{}{0em}{}
+---
+
 # Meet Manager — Quick Start Workflow
 
 ## Prerequisites
 
-- SPLASH Meet Manager 11 with your meet database (`.mdb`)
+- SPLASH Meet Manager 11
 - Meet Manager App running (Docker)
-- Meet .lxf exported from SPLASH
+- Admin access to the app (admin PIN)
 
 ---
 
-## Step 1 — Export the Meet Invitation from SPLASH
+## Step 1 — Admin: Set Up Clubs and Athletes
 
-![Export invitation](1_export_invitation.png)
-
-1. Open your meet in SPLASH Meet Manager
-2. Go to **Transfers → Export invitation...**
-3. Save the `.lxf` file (this is your meet structure)
-
----
-
-## Step 2 — Upload Meet Structure to Meet Manager App
-
-1. Log in to the Meet Manager App as **Admin** (PIN: admin PIN)
-2. In the **Admin** page, upload the `.lxf` file under **Upload Meet**
-3. The app loads all events, pool size, and masters flag
+1. Log in to Meet Manager App as **Admin**
+2. In the **Admin** page, upload a Lenex entries `.lxf` file (previous meet or master list) to import clubs, athletes, and best times
+3. Review the club list; add or remove clubs as needed
+4. Designate the **organizer club** under *Set Meet Organizer*
 
 ---
 
-## Step 3 — Send Invitations to Team Admins
+## Step 2 — Organizer: Get the Meet Template
 
-1. In the Admin page, scroll to **Team Invites**
-2. Enter each club's team admin email
-3. Click **Send PIN** — an email is sent with a one-time secure link to their PIN
-
----
-
-## Step 4 — Team Admins Register Athletes
-
-![Edit entries](3_editentries.png)
-
-1. Team admin logs in with their club PIN
-2. Select an athlete → Registration page opens
-3. Check events to register, select category (15-18 / Open / Masters)
-4. Best times (50m and 25m) are displayed read-only
-5. Entry time is pre-filled from the best time matching the meet's pool size
-6. Adjust entry time if needed
+1. Log in as the **Organizer** (club designated by Admin)
+2. In the **Organizer** page, click **Download Meet Template (.lxf)**
+3. Open the downloaded `.lxf` file in SPLASH — this restores the previous meet structure as a starting point
+4. In SPLASH, update the meet: dates, sessions, events, fees, and any other details
 
 ---
 
-## Step 5 — Admin Exports Registrations
+## Step 3 — Export the Meet Invitation from SPLASH
 
-1. In the Admin page, click **Download .lxf** under Export
-2. Save the generated `.lxf` file
+![Export invitation from SPLASH](assets/1_export_invitation.png)
 
----
-
-## Step 6 — Import Entries into SPLASH
-
-![Import entries](2_importentries.png)
-
-1. In SPLASH, go to **Transfers → Import entries...**
-2. Select the `.lxf` file exported from Meet Manager App
-3. All athletes, clubs, and entry times are imported
+1. In SPLASH, go to **Transfers → Export invitation…**
+2. Save the resulting `.lxf` file (this is your updated meet structure)
 
 ---
 
-## Step 7 — After the Meet: Export Results
+## Step 4 — Organizer: Upload the Meet Structure
 
-![Export results](4_exportresults.png)
+1. In the **Organizer** page, click **Upload Meet Structure** and select the `.lxf` exported in Step 3
+2. The app loads all events, pool size, masters flag, and fees
+3. The **Fee Summary** box will show the loaded meet-level and per-event fees
 
-1. After the competition, in SPLASH go to **Transfers → Export results...**
+---
+
+## Step 5 — Organizer: Set the Entry Closure Date
+
+1. In the **Organizer** page, set the **Entry closure date**
+2. Club coaches can register until this date; the invite list greys out after closure
+
+---
+
+## Step 6 — Organizer: Send Invitations to Club Coaches
+
+1. In the **Organizer** page, go to **Team Invites**
+2. Select the clubs to invite (use the checkboxes or select all)
+3. Click **Send Invitation** — each coach receives an email with a one-time secure link to retrieve their club PIN
+
+---
+
+## Step 7 — Club Coaches Register Athletes
+
+![Edit entries](assets/3_editentries.png)
+
+1. Coach clicks the PIN link in the invitation email to reveal their club PIN
+2. Coach logs in with the PIN
+3. Select an athlete → Registration page opens
+4. Check events to register; select category (15-18 / Open / Masters)
+5. Best times (50m and 25m) are shown read-only
+6. Entry time is pre-filled from the best time matching the meet's pool size; adjust if needed
+
+---
+
+## Step 8 — Organizer: Export Registrations
+
+1. After the closure date, in the **Organizer** page click **Download bundle (.zip)**
+2. The zip contains the registrations `.lxf` and SPLASH simulation helper scripts
+
+---
+
+## Step 9 — Import Entries into SPLASH
+
+![Import entries into SPLASH](assets/2_importentries.png)
+
+1. In SPLASH, go to **Transfers → Import entries…**
+2. Select the `.lxf` from inside the downloaded zip
+3. All athletes, clubs, and entry times are imported and ready for race day
+
+---
+
+## Step 10 — After the Meet: Export Results from SPLASH
+
+![Export results from SPLASH](assets/4_exportresults.png)
+
+1. After the competition, in SPLASH go to **Transfers → Export results…**
 2. Save the results `.lxf` file
 
 ---
 
-## Step 8 — Upload Results to Update Best Times
+## Step 11 — Admin: Upload Results to Update Best Times
 
-1. In the Admin page, upload the results `.lxf` under **Upload Results**
-2. Best times are updated (fastest of entry time vs. result time, per pool size)
-3. These best times will pre-fill entry times for the next meet
+1. In the **Admin** page, upload the results `.lxf` under **Upload Lenex (.lxf)**
+2. Best times are updated (fastest of entry time vs. result, per pool size)
+3. These times will pre-fill entry times for the next meet
+
+---
+
+## Step 12 — Admin: Export the Updated Entries File
+
+1. In the **Data Management** page, click **Download entries (.lxf)**
+2. Save this file — use it as the seed for the next meet (Step 1)
 
 ---
 
 ## Summary
 
-| Step | Action | Tool |
-|------|--------|------|
-| 1 | Export meet invitation | SPLASH |
-| 2 | Upload meet structure | Meet Manager App (Admin) |
-| 3 | Send team invitations | Meet Manager App (Admin) |
-| 4 | Register athletes | Meet Manager App (Team Admin) |
-| 5 | Export registrations | Meet Manager App (Admin) |
-| 6 | Import entries | SPLASH |
-| 7 | Export results | SPLASH |
-| 8 | Upload results / best times | Meet Manager App (Admin) |
+| Step | Action | Who | Tool |
+|------|--------|-----|------|
+| 1 | Import clubs & athletes; designate organizer | Admin | Meet Manager App |
+| 2 | Download meet template | Organizer | Meet Manager App |
+| 3 | Update meet in SPLASH; export invitation | Organizer | SPLASH |
+| 4 | Upload meet structure | Organizer | Meet Manager App |
+| 5 | Set closure date | Organizer | Meet Manager App |
+| 6 | Send invitations | Organizer | Meet Manager App |
+| 7 | Register athletes | Club coaches | Meet Manager App |
+| 8 | Export registrations bundle (.zip) | Organizer | Meet Manager App |
+| 9 | Import entries | Organizer | SPLASH |
+| 10 | Export results | — | SPLASH |
+| 11 | Upload results / update best times | Admin | Meet Manager App |
+| 12 | Export updated entries file | Admin | Meet Manager App |

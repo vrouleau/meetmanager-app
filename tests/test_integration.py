@@ -6,7 +6,9 @@ no SPLASH involved. Run: `pytest tests/ -v` from repo root.
 from __future__ import annotations
 
 import re
+import zipfile
 from datetime import date
+from io import BytesIO
 
 import pytest
 import requests
@@ -291,11 +293,12 @@ class TestExport:
 
 class TestResultsUpload:
     @pytest.fixture(scope="class")
-    def uploaded_results(self, results_path) -> dict:
+    def uploaded_results(self, results_path, admin_headers) -> dict:
         with open(results_path, "rb") as f:
             r = requests.post(
                 f"{BASE_URL}/api/upload/results",
                 files={"file": ("results.lxf", f, "application/octet-stream")},
+                headers=admin_headers,
                 timeout=60,
             )
         r.raise_for_status()
@@ -327,3 +330,262 @@ class TestResultsUpload:
             if found:
                 break
         assert found, "no best_time_scm_ms surfaced on any athlete after upload"
+
+
+# ---------------------------------------------------------------------------
+# Access control (auth middleware added in security-hardening branch)
+# ---------------------------------------------------------------------------
+
+class TestAccessControl:
+    """Verify that protected endpoints enforce role requirements."""
+
+    def test_admin_endpoint_rejects_no_auth(self):
+        r = requests.get(f"{BASE_URL}/api/export", timeout=5)
+        assert r.status_code == 403
+
+    def test_admin_endpoint_rejects_coach(self, clubs):
+        coach_headers = {"X-Club-Pin": clubs[0]["pin"]}
+        r = requests.get(f"{BASE_URL}/api/export", headers=coach_headers, timeout=5)
+        assert r.status_code == 403
+
+    def test_admin_post_endpoint_rejects_coach(self, clubs):
+        coach_headers = {"X-Club-Pin": clubs[0]["pin"]}
+        r = requests.post(f"{BASE_URL}/api/clubs/regenerate-pins",
+                          headers=coach_headers, timeout=5)
+        assert r.status_code == 403
+
+    def test_clubs_pin_hidden_from_coach(self, clubs):
+        """GET /clubs must omit the pin field for non-admin callers."""
+        coach_headers = {"X-Club-Pin": clubs[0]["pin"]}
+        r = requests.get(f"{BASE_URL}/api/clubs", headers=coach_headers, timeout=10)
+        r.raise_for_status()
+        for c in r.json():
+            assert "pin" not in c
+
+    def test_clubs_pin_visible_to_admin(self, admin_headers):
+        """GET /clubs must include the pin field for admin."""
+        r = requests.get(f"{BASE_URL}/api/clubs", headers=admin_headers, timeout=10)
+        r.raise_for_status()
+        for c in r.json():
+            assert "pin" in c
+
+    def test_several_admin_endpoints_reject_unauthenticated(self):
+        """Spot-check a range of admin-only endpoints without credentials."""
+        endpoints = [
+            ("GET",  "/api/export/entries"),
+            ("GET",  "/api/admin/organizer"),
+            ("GET",  "/api/data-management/styles"),
+            ("POST", "/api/admin/set-organizer"),
+            ("POST", "/api/data-management/merge-clubs"),
+        ]
+        for method, path in endpoints:
+            r = requests.request(method, f"{BASE_URL}{path}", timeout=5)
+            assert r.status_code == 403, (
+                f"Expected 403 on {method} {path}, got {r.status_code}"
+            )
+
+    def test_flush_meet_rejects_coach(self, clubs):
+        coach_headers = {"X-Club-Pin": clubs[0]["pin"]}
+        r = requests.delete(f"{BASE_URL}/api/registrations",
+                            headers=coach_headers, timeout=5)
+        assert r.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting on /auth
+# ---------------------------------------------------------------------------
+
+class TestAuthRateLimit:
+    def test_rate_limit_triggers_after_rapid_failures(self):
+        """After ≥5 failed auth attempts in 60 s the server must return 429."""
+        got_429 = False
+        for _ in range(10):  # well above the limit of 5
+            r = requests.post(f"{BASE_URL}/api/auth",
+                              json={"pin": "999998"}, timeout=5)
+            assert r.status_code in (401, 429), f"Unexpected status: {r.status_code}"
+            if r.status_code == 429:
+                got_429 = True
+                break
+        assert got_429, "Expected 429 after repeated failed auth attempts"
+
+
+# ---------------------------------------------------------------------------
+# Entries export (/export/entries — new endpoint)
+# ---------------------------------------------------------------------------
+
+class TestExportEntries:
+    @pytest.fixture(scope="class")
+    def entries_zip(self, uploaded, admin_headers) -> zipfile.ZipFile:
+        r = requests.get(f"{BASE_URL}/api/export/entries",
+                         headers=admin_headers, timeout=30)
+        r.raise_for_status()
+        return zipfile.ZipFile(BytesIO(r.content))
+
+    def test_contains_lef(self, entries_zip):
+        names = entries_zip.namelist()
+        assert any(n.endswith(".lef") for n in names), f"No .lef in {names}"
+
+    def test_athlete_count_matches_import(self, entries_zip, uploaded):
+        lef_name = next(n for n in entries_zip.namelist() if n.endswith(".lef"))
+        lef = entries_zip.read(lef_name).decode()
+        assert lef.count("<ATHLETE ") == uploaded["entries"]["athletes_added"]
+
+    def test_club_count_matches_import(self, entries_zip, uploaded):
+        lef_name = next(n for n in entries_zip.namelist() if n.endswith(".lef"))
+        lef = entries_zip.read(lef_name).decode()
+        assert lef.count("<CLUB ") == uploaded["entries"]["clubs_added"]
+
+    def test_requires_admin(self, clubs):
+        coach_headers = {"X-Club-Pin": clubs[0]["pin"]}
+        r = requests.get(f"{BASE_URL}/api/export/entries",
+                         headers=coach_headers, timeout=5)
+        assert r.status_code == 403
+
+    def test_has_entry_elements_after_results_upload(
+            self, uploaded, admin_headers, results_path):
+        """After results are loaded, the entries export includes ENTRY elements."""
+        with open(results_path, "rb") as f:
+            r = requests.post(
+                f"{BASE_URL}/api/upload/results",
+                files={"file": ("results.lxf", f, "application/octet-stream")},
+                headers=admin_headers,
+                timeout=60,
+            )
+        r.raise_for_status()
+
+        r = requests.get(f"{BASE_URL}/api/export/entries",
+                         headers=admin_headers, timeout=30)
+        r.raise_for_status()
+        z = zipfile.ZipFile(BytesIO(r.content))
+        lef_name = next(n for n in z.namelist() if n.endswith(".lef"))
+        lef = z.read(lef_name).decode()
+        assert "<ENTRY " in lef, "Expected ENTRY elements after best-time upload"
+
+
+# ---------------------------------------------------------------------------
+# Meet LXF download (/export/meet-lxf — new endpoint)
+# ---------------------------------------------------------------------------
+
+class TestExportMeetLxf:
+    def test_returns_zip_content(self, uploaded, admin_headers):
+        r = requests.get(f"{BASE_URL}/api/export/meet-lxf",
+                         headers=admin_headers, timeout=30)
+        r.raise_for_status()
+        z = zipfile.ZipFile(BytesIO(r.content))
+        assert len(z.namelist()) > 0
+
+    def test_rejects_no_auth(self):
+        r = requests.get(f"{BASE_URL}/api/export/meet-lxf", timeout=5)
+        assert r.status_code == 403
+
+    def test_rejects_coach(self, clubs):
+        coach_headers = {"X-Club-Pin": clubs[0]["pin"]}
+        r = requests.get(f"{BASE_URL}/api/export/meet-lxf",
+                         headers=coach_headers, timeout=5)
+        assert r.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Data management endpoints (new in security-hardening branch)
+# ---------------------------------------------------------------------------
+
+class TestDataManagement:
+    # --- styles listing ---
+
+    def test_styles_returns_list(self, uploaded, admin_headers):
+        r = requests.get(f"{BASE_URL}/api/data-management/styles",
+                         headers=admin_headers, timeout=10)
+        r.raise_for_status()
+        assert isinstance(r.json(), list)
+
+    def test_styles_entries_have_uid_and_name(self, uploaded, admin_headers):
+        r = requests.get(f"{BASE_URL}/api/data-management/styles",
+                         headers=admin_headers, timeout=10)
+        r.raise_for_status()
+        for s in r.json():
+            assert "uid" in s
+            assert "name" in s
+
+    def test_styles_requires_admin(self, clubs):
+        coach_headers = {"X-Club-Pin": clubs[0]["pin"]}
+        r = requests.get(f"{BASE_URL}/api/data-management/styles",
+                         headers=coach_headers, timeout=5)
+        assert r.status_code == 403
+
+    # --- merge-clubs ---
+
+    def test_merge_clubs_moves_athletes(self, admin_headers):
+        """Create two fresh clubs, merge source into target, verify source deleted."""
+        r = requests.post(f"{BASE_URL}/api/clubs",
+                          json={"name": "Merge Source", "code": "MSRC"},
+                          headers=admin_headers, timeout=10)
+        r.raise_for_status()
+        src_id = r.json()["id"]
+
+        r = requests.post(f"{BASE_URL}/api/clubs",
+                          json={"name": "Merge Target", "code": "MTGT"},
+                          headers=admin_headers, timeout=10)
+        r.raise_for_status()
+        tgt_id = r.json()["id"]
+
+        r = requests.post(f"{BASE_URL}/api/data-management/merge-clubs",
+                          json={"merges": [{"from_id": src_id, "to_id": tgt_id}]},
+                          headers=admin_headers, timeout=10)
+        r.raise_for_status()
+        assert r.json()["merged"] == 1
+
+        r = requests.get(f"{BASE_URL}/api/clubs", headers=admin_headers, timeout=10)
+        r.raise_for_status()
+        ids = [c["id"] for c in r.json()]
+        assert src_id not in ids, "source club should be deleted after merge"
+        assert tgt_id in ids, "target club should still exist"
+
+        # clean up
+        requests.delete(f"{BASE_URL}/api/clubs/{tgt_id}",
+                        headers=admin_headers, timeout=10)
+
+    def test_merge_clubs_noop_same_id(self, admin_headers, clubs):
+        club_id = clubs[0]["id"]
+        r = requests.post(f"{BASE_URL}/api/data-management/merge-clubs",
+                          json={"merges": [{"from_id": club_id, "to_id": club_id}]},
+                          headers=admin_headers, timeout=10)
+        r.raise_for_status()
+        assert r.json()["merged"] == 0
+
+    def test_merge_clubs_requires_admin(self, clubs):
+        coach_headers = {"X-Club-Pin": clubs[0]["pin"]}
+        r = requests.post(f"{BASE_URL}/api/data-management/merge-clubs",
+                          json={"merges": []},
+                          headers=coach_headers, timeout=5)
+        assert r.status_code == 403
+
+    # --- merge-styles ---
+
+    def test_merge_styles_noop_same_uid(self, uploaded, admin_headers):
+        """Merging a style uid into itself must return merged_rows == 0."""
+        r = requests.get(f"{BASE_URL}/api/data-management/styles",
+                         headers=admin_headers, timeout=10)
+        r.raise_for_status()
+        styles = r.json()
+        if not styles:
+            pytest.skip("No best-time styles in DB yet")
+        uid = styles[0]["uid"]
+        r = requests.post(f"{BASE_URL}/api/data-management/merge-styles",
+                          json={"merges": [{"from_uid": uid, "to_uid": uid}]},
+                          headers=admin_headers, timeout=10)
+        r.raise_for_status()
+        assert r.json()["merged_rows"] == 0
+
+    def test_merge_styles_empty_list_is_noop(self, admin_headers):
+        r = requests.post(f"{BASE_URL}/api/data-management/merge-styles",
+                          json={"merges": []},
+                          headers=admin_headers, timeout=10)
+        r.raise_for_status()
+        assert r.json()["merged_rows"] == 0
+
+    def test_merge_styles_requires_admin(self, clubs):
+        coach_headers = {"X-Club-Pin": clubs[0]["pin"]}
+        r = requests.post(f"{BASE_URL}/api/data-management/merge-styles",
+                          json={"merges": []},
+                          headers=coach_headers, timeout=5)
+        assert r.status_code == 403

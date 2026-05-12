@@ -93,12 +93,13 @@ def results_path(entries_path) -> Path:
 
 
 @pytest.fixture(scope="session")
-def uploaded(entries_path) -> dict:
+def uploaded(entries_path, admin_headers) -> dict:
     """Upload meet template + generated entries. Returns counts from the API."""
     with open(MEET_TEMPLATE, "rb") as f:
         r = requests.post(
             f"{BASE_URL}/api/upload/meet",
             files={"file": ("meet.lxf", f, "application/octet-stream")},
+            headers=admin_headers,
             timeout=60,
         )
     assert r.status_code == 200, f"meet upload: {r.status_code} {r.text}"
@@ -108,6 +109,7 @@ def uploaded(entries_path) -> dict:
         r = requests.post(
             f"{BASE_URL}/api/upload/entries",
             files={"file": ("entries.lxf", f, "application/octet-stream")},
+            headers=admin_headers,
             timeout=60,
         )
     assert r.status_code == 200, f"entries upload: {r.status_code} {r.text}"

@@ -20,9 +20,10 @@
 ## Étape 2 — Organisateur : Obtenir le gabarit de compétition
 
 1. Se connecter en tant qu'**Organisateur** (club désigné par l'Admin)
-2. Dans la page **Organisateur**, cliquer **Télécharger le gabarit de compétition (.lxf)**
-3. Ouvrir le fichier `.lxf` téléchargé dans SPLASH — ceci restaure la structure de la compétition précédente comme point de départ
+2. Dans la page **Organisateur**, cliquer **Télécharger le gabarit de compétition (.smb)**
+3. Ouvrir le fichier `.smb` téléchargé dans SPLASH — ceci restaure la structure complète de la compétition précédente, incluant les **épreuves combinées** (les épreuves combinées définies ne sont pas préservées dans les exports `.lxf`)
 4. Dans SPLASH, mettre à jour la compétition : dates, sessions, épreuves, tarifs et autres détails
+5. **Réviser et adapter les épreuves combinées** en fonction des épreuves combinées définies pour cette compétition — les règles de pointage des épreuves combinées sont stockées uniquement dans le `.smb` et doivent être mises à jour manuellement chaque saison
 
 ---
 
@@ -39,6 +40,7 @@ Avant d'exporter le fichier d'invitation `.lxf` depuis SPLASH, vérifier que les
 | Devise des frais | La devise de la facture reste vide |
 | Frais par épreuve sur les épreuves de chronométrage | Les lignes de facturation par inscription sont à zéro |
 | Groupes d'âge sur chaque épreuve | La liste déroulante de catégorie n'a aucune option valide pour l'épreuve |
+| Définition des épreuves combinées | Le pointage des épreuves combinées (ex. : rescue medley, sauvetage combiné) sera incorrect ou absent si elles ne sont pas adaptées à la compétition en cours |
 
 ---
 
@@ -133,7 +135,7 @@ Avant d'exporter le fichier d'invitation `.lxf` depuis SPLASH, vérifier que les
 | Étape | Action | Qui | Outil |
 |-------|--------|-----|-------|
 | 1 | Importer clubs et athlètes ; désigner l'organisateur | Admin | Meet Manager App |
-| 2 | Télécharger le gabarit de compétition | Organisateur | Meet Manager App |
+| 2 | Télécharger le gabarit (.smb) ; adapter les épreuves combinées dans SPLASH | Organisateur | Meet Manager App + SPLASH |
 | 3 | Mettre à jour la compétition dans SPLASH ; exporter l'invitation | Organisateur | SPLASH |
 | 4 | Téléverser la structure de la compétition | Organisateur | Meet Manager App |
 | 5 | Fixer la date limite | Organisateur | Meet Manager App |

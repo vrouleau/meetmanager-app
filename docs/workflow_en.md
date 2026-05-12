@@ -20,9 +20,10 @@
 ## Step 2 — Organizer: Get the Meet Template
 
 1. Log in as the **Organizer** (club designated by Admin)
-2. In the **Organizer** page, click **Download Meet Template (.lxf)**
-3. Open the downloaded `.lxf` file in SPLASH — this restores the previous meet structure as a starting point
+2. In the **Organizer** page, click **Download Meet Template (.smb)**
+3. Open the downloaded `.smb` file in SPLASH — this restores the full previous meet structure, including **combined events** (defined combined events are not preserved in `.lxf` exports)
 4. In SPLASH, update the meet: dates, sessions, events, fees, and any other details
+5. **Review and adapt the combined events** to match this season's meet definitions — combined event scoring rules are stored only in the `.smb` and must be manually updated each season
 
 ---
 
@@ -39,6 +40,7 @@ Before exporting the invitation `.lxf` from SPLASH, verify that the following fi
 | Fee currency | Invoice currency defaults to nothing |
 | Per-event fees on timing events | Per-entry invoice lines are zero |
 | Age groups on every event | Age category dropdown has no valid options for the event |
+| Combined event definitions | Scoring for combined events (e.g. rescue medley, combined lifesaving) will be wrong or missing if not adapted to the current meet |
 
 ---
 
@@ -133,7 +135,7 @@ Before exporting the invitation `.lxf` from SPLASH, verify that the following fi
 | Step | Action | Who | Tool |
 |------|--------|-----|------|
 | 1 | Import clubs & athletes; designate organizer | Admin | Meet Manager App |
-| 2 | Download meet template | Organizer | Meet Manager App |
+| 2 | Download meet template (.smb); adapt combined events in SPLASH | Organizer | Meet Manager App + SPLASH |
 | 3 | Update meet in SPLASH; export invitation | Organizer | SPLASH |
 | 4 | Upload meet structure | Organizer | Meet Manager App |
 | 5 | Set closure date | Organizer | Meet Manager App |

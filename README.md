@@ -14,7 +14,7 @@ Web-based registration management for lifesaving competitions. Integrates with S
 ### Exports
 - **Registrations bundle** — .zip with a Lenex registrations .lxf (correct SPLASH event/age-group IDs) plus `simulate_results.bat` and `simulate_results.vbs` for meet-day use
 - **Entries .lxf** — all clubs, athletes, and best times exported as a Lenex entries file for backup or re-import into another system
-- **Meet .lxf re-download** — retrieve the currently loaded meet file
+- **Meet template .smb** — download the SPLASH meet template (`.smb`); preserves combined-event definitions that Lenex `.lxf` exports omit
 
 ### Registration
 - Per-athlete event registration with age category dropdown (10−, 11−12, 13−14, 15−18, Open, Masters)
@@ -92,6 +92,7 @@ docker compose up --build -d
 | `RESEND_FROM_EMAIL` | Sender address (must be verified in Resend) |
 | `APP_BASE_URL` | Public frontend URL, used in email links and CORS origin |
 | `STRIPE_API_KEY` | Stripe secret key for invoice generation |
+| `MEET_TEMPLATE` | Path to the meet template `.smb` file served to organizers (default `/app/templates/meet.smb`) |
 | `BEST_TIME_MAX_AGE_MONTHS` | Best-time expiry in months (default `18`) |
 
 ## Workflow
@@ -99,7 +100,7 @@ docker compose up --build -d
 See `docs/workflow_en.md` / `docs/workflow_fr.md` for the full end-to-end guide with screenshots.
 
 1. **Before the meet**: export entries .lxf from SPLASH → upload to app (imports clubs, athletes, best times)
-2. **Meet setup**: export meet invitation .lxf from SPLASH → upload to app (loads events, fees, sessions); app regenerates all club PINs
+2. **Meet setup**: download meet template `.smb` → open in SPLASH (restores full meet structure including combined events) → adapt combined events → export invitation `.lxf` → upload to app (loads events, fees, sessions)
 3. **Invitations**: admin designates organizer; organizer sends PIN invitation emails to all team admins
 4. **Registration**: team admins log in with their PIN, register athletes for events and categories; best times pre-fill entry times
 5. **Export**: admin downloads the registrations bundle (.zip) → imports registrations .lxf into SPLASH
@@ -122,6 +123,7 @@ Before exporting any file from SPLASH, make sure the fields below are set. Missi
 | Fee currency | Invoice currency defaults to nothing |
 | Per-event fees on timing events | Per-entry invoice lines are zero |
 | Age groups on every event | Age category dropdown has no valid options for the event |
+| Combined event definitions (in `.smb`) | Scoring for combined events (e.g. rescue medley, combined lifesaving) will be wrong or missing — adapt these from the `.smb` before exporting the invitation |
 
 ### Entries file
 

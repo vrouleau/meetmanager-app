@@ -104,8 +104,8 @@ const translations = {
     export_entries: "Export All Data",
     export_entries_desc: "Download a Lenex .lxf with all clubs, athletes, and best times. Equivalent to a SPLASH 'Export entries' — use as a seed for future meets.",
     download_entries_lxf: "Download entries (.lxf)",
-    export_meet_lxf: "Download Meet Template (.lxf)",
-    export_meet_lxf_desc: "Download the meet template file. Modify it in SPLASH for your event, then upload it above.",
+    export_meet_smb: "Download Meet Template (.smb)",
+    export_meet_smb_desc: "Download the meet template (.smb). Open it in SPLASH to restore the previous meet structure including combined events, update the meet, then export an invitation .lxf to upload above.",
   },
   fr: {
     athletes: "Athlètes",
@@ -210,8 +210,8 @@ const translations = {
     export_entries: "Exporter toutes les données",
     export_entries_desc: "Télécharger un fichier Lenex .lxf avec tous les clubs, athlètes et meilleurs temps. Équivalent à « Exporter inscriptions » dans SPLASH — utile comme fichier de base pour les prochaines compétitions.",
     download_entries_lxf: "Télécharger les inscriptions (.lxf)",
-    export_meet_lxf: "Télécharger le gabarit de compétition (.lxf)",
-    export_meet_lxf_desc: "Télécharger le fichier gabarit de la compétition. Modifiez-le dans SPLASH pour votre événement, puis téléversez-le ci-dessus.",
+    export_meet_smb: "Télécharger le gabarit de compétition (.smb)",
+    export_meet_smb_desc: "Télécharger le gabarit (.smb). Ouvrez-le dans SPLASH pour restaurer la structure de la compétition précédente incluant les épreuves combinées, mettez à jour la compétition, puis exportez un fichier d'invitation .lxf à téléverser ci-dessus.",
   },
 }
 

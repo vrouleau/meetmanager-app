@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Dependencies (Ubuntu/Debian):
+#   sudo apt-get install -y pandoc texlive-latex-extra texlive-fonts-recommended
 set -e
 
 cd "$(dirname "$0")"

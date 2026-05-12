@@ -102,6 +102,7 @@ APP_BASE_URL=       # public URL for links in emails
 SECRET_KEY=         # Fernet encryption key for PIN in secret links
 STRIPE_API_KEY=     # Stripe secret key for invoice generation
 DATABASE_URL=       # set automatically by Docker Compose
+MEET_TEMPLATE=      # path to meet template .smb (default: /app/templates/meet.smb)
 BEST_TIME_MAX_AGE_MONTHS=  # months before a best time is considered stale (default: 18)
 ```
 
@@ -139,7 +140,7 @@ BEST_TIME_MAX_AGE_MONTHS=  # months before a best time is considered stale (defa
 | POST | `/upload/results` | Import best times from results Lenex |
 | GET | `/export` | Download registrations .lxf + simulate scripts as .zip |
 | GET | `/export/entries` | Export all clubs/athletes/best times as Lenex .lxf (seed for next meet) |
-| GET | `/export/meet-lxf` | Download stored meet template .lxf |
+| GET | `/export/meet-smb` | Download meet template .smb (primary template; preserves combined-event definitions) |
 | GET | `/events` | List events |
 | GET | `/status` | DB counts |
 | POST | `/clubs/regenerate-pins` | Regenerate all club PINs |
@@ -179,7 +180,7 @@ BEST_TIME_MAX_AGE_MONTHS=  # months before a best time is considered stale (defa
 
 **Export**: `/export` returns a .zip containing the registrations .lxf plus `simulate_results.bat` and `simulate_results.vbs` (scripts for simulating results in SPLASH on meet day).
 
-**Meet template**: `/export/meet-lxf` serves the file stored at `MEET_TEMPLATE` (env var, default `/app/templates/meet.lxf`). Organizer downloads it, customises the meet in SPLASH, exports a new invitation .lxf, then uploads it back via `/upload/meet`.
+**Meet template**: `/export/meet-smb` serves the file stored at `MEET_TEMPLATE` (env var, default `/app/templates/meet.smb`). The `.smb` is the primary template — it preserves SPLASH combined-event definitions (scoring rules) that are not exported in Lenex `.lxf` files. Organizer downloads it, opens it in SPLASH to restore the full meet structure including combined events, customises the meet, then exports a new invitation `.lxf` and uploads it back via `/upload/meet`.
 
 **Data Management** (`DataManagement.jsx`, admin-only):
 - Club merging: map duplicate/mismatched club names to a canonical club; all athletes and registrations are re-parented, the source club is deleted.

@@ -230,20 +230,25 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                 if _upsert_best_time(db, ath.id, style_uid, best, course, source, recorded_on):
                     updated += 1
 
-    # Persist style uid→name so the Data Management page can show names even without a meet file.
-    if style_names:
-        cfg = db.query(AppConfig).get("style_names_json")
-        existing: dict[int, str] = _json.loads(cfg.value) if cfg else {}
-        # Convert keys to int for merge; new names win if uid not already known
-        merged = {int(k): v for k, v in existing.items()}
-        for uid, name in style_names.items():
-            if uid not in merged:
-                merged[uid] = name
-        payload = _json.dumps({str(k): v for k, v in merged.items()})
-        if cfg:
-            cfg.value = payload
-        else:
-            db.add(AppConfig(key="style_names_json", value=payload))
-
     db.commit()
+
+    # Persist style uid→name so the Data Management page can show names even without a meet file.
+    # Done in a separate commit so that a failure here never rolls back the best_times above.
+    if style_names:
+        try:
+            cfg = db.query(AppConfig).get("style_names_json")
+            existing: dict[int, str] = _json.loads(cfg.value) if cfg else {}
+            merged = {int(k): v for k, v in existing.items()}
+            for uid, name in style_names.items():
+                if uid not in merged:
+                    merged[uid] = name
+            payload = _json.dumps({str(k): v for k, v in merged.items()})
+            if cfg:
+                cfg.value = payload
+            else:
+                db.add(AppConfig(key="style_names_json", value=payload))
+            db.commit()
+        except Exception:
+            db.rollback()
+
     return {"times_updated": updated, "athletes_skipped": skipped, "athletes_created": athletes_created}

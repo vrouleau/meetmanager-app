@@ -146,7 +146,6 @@ This file imports clubs, athletes, and entry-time best times in a single pass.
 |---|---|
 | **Session date** (set on each session, not the meet) | Without a date, all imported best times get today as a fallback — acceptable, but imprecise. The date must be set per session; SPLASH does not export a date at the meet level. |
 | Pool type (LCM / SCM) | All times stored under the wrong course |
-| Swimstyle ID on every event | Result cannot be linked to a style; time is silently skipped |
 | Athlete license number | Falls back to name matching; unmatched athletes are skipped (time lost) |
 | Swim time on each result | No time to import |
 | Relay roster (relay positions with athlete assignments) | Relay time not credited to individual athletes |

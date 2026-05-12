@@ -1,0 +1,17 @@
+# Railway deployment configuration
+# https://docs.railway.com/reference/config-as-code
+#
+# Setup required in Railway dashboard:
+#   1. Add a PostgreSQL plugin — it auto-provides DATABASE_URL
+#   2. Set env vars: SECRET_KEY, ADMIN_PIN, RESEND_API_KEY,
+#      RESEND_FROM_EMAIL, APP_BASE_URL, STRIPE_API_KEY
+#   3. Expose the "frontend" service publicly (backend stays internal)
+
+[build]
+dockerComposeFile = "docker-compose.railway.yml"
+
+[deploy]
+healthcheckPath = "/api/status"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

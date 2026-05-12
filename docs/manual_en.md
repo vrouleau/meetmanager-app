@@ -1,30 +1,3 @@
----
-title: "Meet Manager — User Manual"
-date: "2026"
-mainfont: "Lato"
-monofont: "Noto Mono"
-fontsize: 11pt
-geometry: "margin=2.5cm"
-colorlinks: true
-urlcolor: "NavyBlue"
-linkcolor: "NavyBlue"
-toc: true
-toc-depth: 2
-header-includes:
-  - \usepackage{fancyhdr}
-  - \pagestyle{fancy}
-  - \fancyhf{}
-  - \fancyhead[L]{\textit{Meet Manager}}
-  - \fancyhead[R]{\textit{User Manual}}
-  - \fancyfoot[C]{\thepage}
-  - \usepackage{titlesec}
-  - \usepackage{xcolor}
-  - \definecolor{primary}{RGB}{30,64,175}
-  - \titleformat{\section}{\Large\bfseries\color{primary}}{}{0em}{}[\vspace{-0.5ex}\rule{\textwidth}{0.4pt}\vspace{0.5ex}]
-  - \titleformat{\subsection}{\large\bfseries\color{primary}}{}{0em}{}
-  - \titleformat{\subsubsection}{\normalsize\bfseries}{}{0em}{}
----
-
 # Overview
 
 **Meet Manager** is a web application for managing lifesaving competition registrations. Clubs log in with a PIN, register their athletes for events, and the organizer oversees the meet setup, invitations, and export. An admin manages the overall platform.

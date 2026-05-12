@@ -1,30 +1,3 @@
----
-title: "Meet Manager — Manuel d'utilisation"
-date: "2026"
-mainfont: "Lato"
-monofont: "Noto Mono"
-fontsize: 11pt
-geometry: "margin=2.5cm"
-colorlinks: true
-urlcolor: "NavyBlue"
-linkcolor: "NavyBlue"
-toc: true
-toc-depth: 2
-header-includes:
-  - \usepackage{fancyhdr}
-  - \pagestyle{fancy}
-  - \fancyhf{}
-  - \fancyhead[L]{\textit{Meet Manager}}
-  - \fancyhead[R]{\textit{Manuel d'utilisation}}
-  - \fancyfoot[C]{\thepage}
-  - \usepackage{titlesec}
-  - \usepackage{xcolor}
-  - \definecolor{primary}{RGB}{30,64,175}
-  - \titleformat{\section}{\Large\bfseries\color{primary}}{}{0em}{}[\vspace{-0.5ex}\rule{\textwidth}{0.4pt}\vspace{0.5ex}]
-  - \titleformat{\subsection}{\large\bfseries\color{primary}}{}{0em}{}
-  - \titleformat{\subsubsection}{\normalsize\bfseries}{}{0em}{}
----
-
 # Vue d'ensemble
 
 **Meet Manager** est une application web de gestion des inscriptions aux compétitions de sauvetage sportif. Les clubs se connectent avec un NIP, inscrivent leurs athlètes aux épreuves, et l'organisateur supervise la configuration de la compétition, les invitations et l'export. Un administrateur gère la plateforme globale.

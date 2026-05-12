@@ -1,27 +1,3 @@
----
-title: "Meet Manager — Guide rapide du flux de travail"
-date: "2026"
-mainfont: "Lato"
-monofont: "Noto Mono"
-fontsize: 11pt
-geometry: "margin=2.5cm"
-colorlinks: true
-urlcolor: "NavyBlue"
-linkcolor: "NavyBlue"
-header-includes:
-  - \usepackage{fancyhdr}
-  - \pagestyle{fancy}
-  - \fancyhf{}
-  - \fancyhead[L]{\textit{Meet Manager}}
-  - \fancyhead[R]{\textit{Guide rapide}}
-  - \fancyfoot[C]{\thepage}
-  - \usepackage{titlesec}
-  - \usepackage{xcolor}
-  - \definecolor{primary}{RGB}{30,64,175}
-  - \titleformat{\section}{\Large\bfseries\color{primary}}{}{0em}{}[\vspace{-0.5ex}\rule{\textwidth}{0.4pt}]
-  - \titleformat{\subsection}{\normalsize\bfseries}{}{0em}{}
----
-
 # Meet Manager — Guide rapide du flux de travail
 
 ## Prérequis

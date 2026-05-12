@@ -104,8 +104,8 @@ const translations = {
     export_entries: "Export All Data",
     export_entries_desc: "Download a Lenex .lxf with all clubs, athletes, and best times. Equivalent to a SPLASH 'Export entries' — use as a seed for future meets.",
     download_entries_lxf: "Download entries (.lxf)",
-    export_meet_lxf: "Export Meet (.lxf)",
-    export_meet_lxf_desc: "Download the currently uploaded meet structure file.",
+    export_meet_lxf: "Download Meet Template (.lxf)",
+    export_meet_lxf_desc: "Download the meet template file. Modify it in SPLASH for your event, then upload it above.",
   },
   fr: {
     athletes: "Athlètes",
@@ -210,8 +210,8 @@ const translations = {
     export_entries: "Exporter toutes les données",
     export_entries_desc: "Télécharger un fichier Lenex .lxf avec tous les clubs, athlètes et meilleurs temps. Équivalent à « Exporter inscriptions » dans SPLASH — utile comme fichier de base pour les prochaines compétitions.",
     download_entries_lxf: "Télécharger les inscriptions (.lxf)",
-    export_meet_lxf: "Exporter la compétition (.lxf)",
-    export_meet_lxf_desc: "Télécharger le fichier de structure de la compétition actuellement chargée.",
+    export_meet_lxf: "Télécharger le gabarit de compétition (.lxf)",
+    export_meet_lxf_desc: "Télécharger le fichier gabarit de la compétition. Modifiez-le dans SPLASH pour votre événement, puis téléversez-le ci-dessus.",
   },
 }
 

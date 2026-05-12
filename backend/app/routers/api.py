@@ -24,6 +24,7 @@ from ..invoices import create_invoice_for_club
 router = APIRouter(prefix="/api")
 
 MEET_STORAGE = Path(os.environ.get("MEET_STORAGE", "/app/data/meet.lxf"))
+MEET_TEMPLATE = Path(os.environ.get("MEET_TEMPLATE", "/app/templates/meet.lxf"))
 _DEFAULT_ADMIN_PIN = os.environ.get("ADMIN_PIN", "000000")
 _BEST_TIME_MAX_AGE_MONTHS = int(os.environ.get("BEST_TIME_MAX_AGE_MONTHS", "18"))
 
@@ -1145,13 +1146,13 @@ def export_entries_lxf(db: Session = Depends(get_db)):
 
 @router.get("/export/meet-lxf", dependencies=[Depends(require_organizer_or_admin)])
 def export_meet_lxf():
-    """Download the currently uploaded meet .lxf file."""
-    if not MEET_STORAGE.exists():
-        raise HTTPException(404, "No meet uploaded")
+    """Download the meet template .lxf file."""
+    if not MEET_TEMPLATE.exists():
+        raise HTTPException(404, "Meet template not found")
     return Response(
-        content=MEET_STORAGE.read_bytes(),
-        media_type="application/zip",
-        headers={"Content-Disposition": "attachment; filename=meet.lxf"},
+        content=MEET_TEMPLATE.read_bytes(),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename={MEET_TEMPLATE.name}"},
     )
 
 

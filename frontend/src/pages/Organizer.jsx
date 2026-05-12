@@ -190,29 +190,25 @@ export default function Organizer() {
       {/* Meet upload */}
       <div className="border p-4 rounded mb-4">
         <h2 className="font-semibold mb-2">{t.upload_meet}</h2>
+        <p className="text-sm text-gray-600 mb-1">{t.export_meet_lxf_desc}</p>
+        <button
+          onClick={() => {
+            fetch('/api/export/meet-lxf', { headers: { 'X-Club-Pin': localStorage.getItem('pin') || '' } })
+              .then(r => { if (!r.ok) throw new Error(r.status); return r.blob() })
+              .then(blob => {
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url; a.download = 'meet.lxf'; a.click()
+                URL.revokeObjectURL(url)
+              })
+              .catch(e => setMsg(e.message || 'Error'))
+          }}
+          className="bg-gray-600 text-white px-3 py-1.5 rounded hover:bg-gray-700 text-sm mb-3"
+        >
+          {t.export_meet_lxf}
+        </button>
         <p className="text-sm text-gray-600 mb-2">{t.upload_meet_desc}</p>
         <input type="file" accept=".lxf" onChange={uploadMeet} />
-        {meetInfo?.filename && (
-          <div className="mt-3">
-            <p className="text-sm text-gray-600 mb-1">{t.export_meet_lxf_desc}</p>
-            <button
-              onClick={() => {
-                fetch('/api/export/meet-lxf', { headers: { 'X-Club-Pin': localStorage.getItem('pin') || '' } })
-                  .then(r => { if (!r.ok) throw new Error(r.status); return r.blob() })
-                  .then(blob => {
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement('a')
-                    a.href = url; a.download = 'meet.lxf'; a.click()
-                    URL.revokeObjectURL(url)
-                  })
-                  .catch(e => setMsg(e.message || 'Error'))
-              }}
-              className="bg-gray-600 text-white px-3 py-1.5 rounded hover:bg-gray-700 text-sm"
-            >
-              {t.export_meet_lxf}
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Export */}

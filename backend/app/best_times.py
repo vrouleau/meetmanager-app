@@ -69,6 +69,9 @@ def _upsert_best_time(db: Session, athlete_id: int, style_uid: int,
                 existing.recorded_on = recorded_on
             improved = True
         else:
+            # Even if the time doesn't improve, stamp a date if the row has none.
+            if recorded_on is not None and existing.recorded_on is None:
+                existing.recorded_on = recorded_on
             improved = False
     else:
         db.add(BestTime(
@@ -119,6 +122,22 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                     pass
                 if recorded_on:
                     break
+    # SPLASH sets the date on SESSION elements, not on MEET. Fall back to the
+    # earliest session date if the MEET element has none.
+    if recorded_on is None:
+        for sess_el in root.iter("SESSION"):
+            raw = sess_el.get("date", "")
+            if raw:
+                try:
+                    d = _date.fromisoformat(raw[:10])
+                    if recorded_on is None or d < recorded_on:
+                        recorded_on = d
+                except ValueError:
+                    pass
+    # Some SPLASH exports omit the date entirely; use today so imported times
+    # are not immediately flagged as undated and deleted by the expiry check.
+    if recorded_on is None:
+        recorded_on = _date.today()
 
     # Build eventid -> style_uid map and uid -> name from the Lenex events
     event_style: dict[str, int] = {}

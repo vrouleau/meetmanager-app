@@ -463,24 +463,24 @@ class TestExportEntries:
 
 
 # ---------------------------------------------------------------------------
-# Meet LXF download (/export/meet-lxf — new endpoint)
+# Meet SMB download (/export/meet-smb)
 # ---------------------------------------------------------------------------
 
 class TestExportMeetLxf:
     def test_returns_zip_content(self, uploaded, admin_headers):
-        r = requests.get(f"{BASE_URL}/api/export/meet-lxf",
+        r = requests.get(f"{BASE_URL}/api/export/meet-smb",
                          headers=admin_headers, timeout=30)
         r.raise_for_status()
         z = zipfile.ZipFile(BytesIO(r.content))
         assert len(z.namelist()) > 0
 
     def test_rejects_no_auth(self):
-        r = requests.get(f"{BASE_URL}/api/export/meet-lxf", timeout=5)
+        r = requests.get(f"{BASE_URL}/api/export/meet-smb", timeout=5)
         assert r.status_code == 403
 
     def test_rejects_coach(self, clubs):
         coach_headers = {"X-Club-Pin": clubs[0]["pin"]}
-        r = requests.get(f"{BASE_URL}/api/export/meet-lxf",
+        r = requests.get(f"{BASE_URL}/api/export/meet-smb",
                          headers=coach_headers, timeout=5)
         assert r.status_code == 403
 

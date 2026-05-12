@@ -35,8 +35,9 @@ meetmanager-app/
 │   ├── i18n.jsx               # Bilingual (fr/en) translations via LangProvider / useLang()
 │   ├── api.js                 # Axios instance (base /api)
 │   ├── pages/
-│   │   ├── Admin.jsx          # Admin panel (entries upload, results upload, export, invoices, set organizer, flush meet)
-│   │   ├── Organizer.jsx      # Organizer panel (meet upload, closure date, fee summary, team invites, Stripe connect/disconnect, invoice PDF download)
+│   │   ├── Admin.jsx          # Admin panel (entries upload, results upload, set organizer, flush meet, change PIN, regen PINs)
+│   │   ├── Organizer.jsx      # Organizer panel (meet upload, meet template download, closure date, fee summary, team invites, Stripe connect/disconnect, invoice PDF download, export zip)
+│   │   ├── DataManagement.jsx # Admin-only: club merging, style merging, export all entries
 │   │   ├── Athletes.jsx       # Club coach view: athlete list
 │   │   ├── Register.jsx       # Per-athlete event registration
 │   │   ├── Login.jsx          # PIN entry
@@ -136,6 +137,8 @@ DATABASE_URL=       # set automatically by Docker Compose
 | POST | `/upload/entries` | Import clubs + athletes + best times from Lenex |
 | POST | `/upload/results` | Import best times from results Lenex |
 | GET | `/export` | Download registrations .lxf + simulate scripts as .zip |
+| GET | `/export/entries` | Export all clubs/athletes/best times as Lenex .lxf (seed for next meet) |
+| GET | `/export/meet-lxf` | Download stored meet template .lxf |
 | GET | `/events` | List events |
 | GET | `/status` | DB counts |
 | POST | `/clubs/regenerate-pins` | Regenerate all club PINs |
@@ -145,6 +148,9 @@ DATABASE_URL=       # set automatically by Docker Compose
 | POST | `/invoices` | Create Stripe draft invoices for all clubs |
 | POST | `/organizer/clubs/invite-all` | Send invitation to all clubs with email set (body: `{lang}`) |
 | POST | `/secret/:token` | Reveal PIN via one-time token |
+| GET | `/data-management/styles` | List all distinct event style UIDs + names |
+| POST | `/data-management/merge-clubs` | Merge duplicate clubs (body: `[{from_id, to_id}]`) |
+| POST | `/data-management/merge-styles` | Merge diverging style UIDs, keeping faster best times |
 
 ## Key behaviours and design rules
 
@@ -171,6 +177,13 @@ DATABASE_URL=       # set automatically by Docker Compose
 **Fee summary**: `FeeSummary` component in `Organizer.jsx` — scrollable monospace box showing meet-level fees + per-event fees.
 
 **Export**: `/export` returns a .zip containing the registrations .lxf plus `simulate_results.bat` and `simulate_results.vbs` (scripts for simulating results in SPLASH on meet day).
+
+**Meet template**: `/export/meet-lxf` serves the file stored at `MEET_TEMPLATE` (env var, default `/app/templates/meet.lxf`). Organizer downloads it, customises the meet in SPLASH, exports a new invitation .lxf, then uploads it back via `/upload/meet`.
+
+**Data Management** (`DataManagement.jsx`, admin-only):
+- Club merging: map duplicate/mismatched club names to a canonical club; all athletes and registrations are re-parented, the source club is deleted.
+- Style merging: consolidate diverging SPLASH style UIDs across imports; best times are merged, keeping the faster time per pool size.
+- Export entries (`/export/entries`): Lenex .lxf of all clubs, athletes, and best times — use as seed for the next season.
 
 ## Running locally
 

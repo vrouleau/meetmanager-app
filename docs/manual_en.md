@@ -106,7 +106,7 @@ These fees are read from the meet `.lxf` structure. They are used by the invoice
 
 ## Downloading the Meet Template
 
-Click **Download Meet Template (.lxf)** to download the stored base meet file. Open this file in SPLASH to restore the previous meet structure as a starting point. Customize the events, sessions, dates, and fees in SPLASH, then export the invitation `.lxf` and upload it back.
+Click **Download Meet Template (.smb)** to download the stored base meet file. Open this `.smb` file in SPLASH to restore the full previous meet structure, including **combined events** (combined event definitions are not preserved in `.lxf` exports). Review and adapt the combined events to match this season's definitions, then customize the events, sessions, dates, and fees in SPLASH. Export the invitation `.lxf` and upload it back.
 
 ## Uploading the Meet Structure
 
@@ -336,6 +336,6 @@ The entry time pre-fills from the athlete's best time for the pool size matching
 | `APP_BASE_URL` | Public URL used in email links | — |
 | `SECRET_KEY` | Fernet key for encrypting PINs in secret links | — |
 | `STRIPE_API_KEY` | Stripe secret key for invoice generation | — |
-| `MEET_TEMPLATE` | Path to the meet template .lxf served to organizers | `/app/templates/meet.lxf` |
+| `MEET_TEMPLATE` | Path to the meet template .smb served to organizers | `/app/templates/meet.smb` |
 | `BEST_TIME_MAX_AGE_MONTHS` | Months before a best time is considered stale and purged | `18` |
 | `DATABASE_URL` | PostgreSQL connection string (set by Docker Compose) | — |

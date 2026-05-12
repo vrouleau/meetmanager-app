@@ -106,7 +106,7 @@ Ces frais sont lus depuis la structure `.lxf` de la compétition et servent à c
 
 ## Télécharger le gabarit de compétition
 
-Cliquer **Télécharger le gabarit de compétition (.lxf)** pour télécharger le fichier de base de la compétition. Ouvrir ce fichier dans SPLASH pour restaurer la structure de la compétition précédente comme point de départ. Personnaliser les épreuves, sessions, dates et tarifs dans SPLASH, puis exporter l'invitation `.lxf` et la téléverser.
+Cliquer **Télécharger le gabarit de compétition (.smb)** pour télécharger le fichier de base de la compétition. Ouvrir ce fichier `.smb` dans SPLASH pour restaurer la structure complète de la compétition précédente, y compris les **épreuves combinées** (les définitions d'épreuves combinées ne sont pas préservées dans les exports `.lxf`). Revoir et adapter les épreuves combinées selon les définitions de la saison en cours, puis personnaliser les épreuves, sessions, dates et tarifs dans SPLASH. Exporter l'invitation `.lxf` et la téléverser.
 
 ## Téléverser la structure de la compétition
 
@@ -335,6 +335,6 @@ Le temps d'inscription se pré-remplit depuis le meilleur temps de l'athlète po
 | `APP_BASE_URL` | URL publique utilisée dans les liens des courriels | — |
 | `SECRET_KEY` | Clé Fernet pour chiffrer les NIPs dans les liens sécurisés | — |
 | `STRIPE_API_KEY` | Clé secrète Stripe pour la génération de factures | — |
-| `MEET_TEMPLATE` | Chemin vers le fichier .lxf modèle servi aux organisateurs | `/app/templates/meet.lxf` |
+| `MEET_TEMPLATE` | Chemin vers le fichier .smb modèle servi aux organisateurs | `/app/templates/meet.smb` |
 | `BEST_TIME_MAX_AGE_MONTHS` | Mois avant qu'un meilleur temps soit considéré périmé et supprimé | `18` |
 | `DATABASE_URL` | Chaîne de connexion PostgreSQL (définie par Docker Compose) | — |

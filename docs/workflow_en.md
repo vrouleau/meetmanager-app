@@ -128,3 +128,65 @@
 | 10 | Export results | — | SPLASH |
 | 11 | Upload results / update best times | Admin | Meet Manager App |
 | 12 | Export updated entries file | Admin | Meet Manager App |
+
+---
+
+## Supplementary Workflow — Consolidating Results from Multiple Past Meets
+
+Use this workflow when you have results or entries files from several past meets that were run with different SPLASH meet structures. Because each meet file may define its own event IDs (`IDxxx`) and club codes, importing multiple files can produce duplicate clubs and mismatched style UIDs. The **Data Management** page resolves both.
+
+### Context
+
+Each SPLASH meet structure assigns its own internal event IDs to disciplines (e.g., `ID001` in one meet file may represent the 50m Freestyle but `ID001` in another file may represent a different event). Similarly, a club that appears as `ASPN` in one file may appear as `ASP-N` or `ASP` in another. Importing both files without reconciling these differences results in duplicate clubs and fragmented best times.
+
+### Step A — Import Each Past Meet File
+
+For each past meet (entries or results `.lxf`):
+
+1. Log in as **Admin**
+2. In the **Admin** page, upload the `.lxf` file under **Upload Lenex (.lxf)**
+3. The app imports new clubs, athletes, and best times; existing records are updated if a matching license number is found
+4. Repeat for every past meet file you want to consolidate
+
+After all uploads, the database will contain all athletes and best times, but may have duplicate clubs and inconsistent style UIDs.
+
+### Step B — Merge Duplicate Clubs
+
+Different meet files often encode the same club under slightly different codes or names. Use club merging to unify them:
+
+1. In the **Data Management** page, go to the **Merge Clubs** section
+2. The list shows all clubs currently in the database
+3. For each duplicate pair, select the **source club** (the one to eliminate) and the **target club** (the canonical record to keep)
+4. Click **Merge** — all athletes and registrations from the source club are re-parented to the target club, and the source club is deleted
+5. Repeat until no duplicates remain
+
+> **Tip:** Start with the most obvious duplicates (same name, different code). Club codes from older or non-standard meet files are the most common source of duplication.
+
+### Step C — Merge Diverging Style UIDs
+
+Each SPLASH meet file defines its own style UIDs for disciplines (e.g., the same discipline may appear as `ID001` in one file and `ID045` in another). Best times are stored per style UID, so a single athlete may end up with two separate best-time records for the same discipline.
+
+1. In the **Data Management** page, go to the **Merge Styles** section
+2. The list shows all distinct style UIDs found in the database, with their associated style names
+3. For each pair of UIDs that represent the same discipline, select the **source UID** (to eliminate) and the **target UID** (canonical — typically the one used by the most recent or most complete meet file)
+4. Click **Merge** — best times under the source UID are merged into the target UID, keeping the faster time per pool size (LCM / SCM) for each athlete; the source UID records are removed
+5. Repeat for all diverging style pairs
+
+> **Tip:** Cross-reference the style names shown in the list with your SPLASH event definitions to confirm you are merging the correct disciplines.
+
+### Step D — Export the Consolidated Entries File
+
+Once clubs and styles are fully reconciled:
+
+1. In the **Data Management** page, click **Download entries (.lxf)**
+2. Save this file — it is a clean Lenex export of all clubs, athletes, and consolidated best times
+3. Use this file as the seed for the next meet (Step 1 of the main workflow)
+
+### Summary
+
+| Step | Action | Who | Tool |
+|------|--------|-----|------|
+| A | Upload each past meet entries/results file | Admin | Meet Manager App |
+| B | Merge duplicate clubs | Admin | Meet Manager App — Data Management |
+| C | Merge diverging style UIDs | Admin | Meet Manager App — Data Management |
+| D | Export consolidated entries file | Admin | Meet Manager App — Data Management |

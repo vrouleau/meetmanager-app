@@ -128,3 +128,65 @@
 | 10 | Exporter les résultats | — | SPLASH |
 | 11 | Téléverser résultats / mettre à jour les meilleurs temps | Admin | Meet Manager App |
 | 12 | Exporter le fichier d'inscriptions mis à jour | Admin | Meet Manager App |
+
+---
+
+## Flux de travail supplémentaire — Consolider les résultats de plusieurs compétitions passées
+
+Utilisez ce flux de travail lorsque vous disposez de fichiers de résultats ou d'inscriptions provenant de plusieurs compétitions passées réalisées avec des structures SPLASH différentes. Chaque fichier de compétition peut définir ses propres identifiants d'épreuves (`IDxxx`) et codes de club ; importer plusieurs fichiers peut donc générer des clubs en double et des UIDs de style incompatibles. La page **Gestion des données** permet de résoudre les deux problèmes.
+
+### Contexte
+
+Chaque structure de compétition SPLASH attribue ses propres identifiants internes aux disciplines (p. ex. `ID001` dans un fichier peut représenter le 50 m nage libre, mais `ID001` dans un autre fichier peut représenter une discipline différente). De même, un club qui apparaît sous le code `ASPN` dans un fichier peut être enregistré sous `ASP-N` ou `ASP` dans un autre. Importer plusieurs fichiers sans réconcilier ces différences produit des clubs en double et des meilleurs temps fragmentés.
+
+### Étape A — Importer chaque fichier de compétition passée
+
+Pour chaque compétition passée (fichier d'inscriptions ou de résultats `.lxf`) :
+
+1. Se connecter en tant qu'**Admin**
+2. Dans la page **Admin**, téléverser le fichier `.lxf` sous **Téléverser Lenex (.lxf)**
+3. L'application importe les nouveaux clubs, athlètes et meilleurs temps ; les enregistrements existants sont mis à jour si un numéro de licence correspondant est trouvé
+4. Répéter pour chaque fichier de compétition passée à consolider
+
+Après tous les téléversements, la base de données contiendra l'ensemble des athlètes et des meilleurs temps, mais peut comporter des clubs en double et des UIDs de style incohérents.
+
+### Étape B — Fusionner les clubs en double
+
+Différents fichiers de compétition encodent souvent le même club sous des codes ou noms légèrement différents. Utilisez la fusion de clubs pour les unifier :
+
+1. Dans la page **Gestion des données**, aller à la section **Fusionner les clubs**
+2. La liste affiche tous les clubs présents dans la base de données
+3. Pour chaque paire de doublons, sélectionner le **club source** (celui à éliminer) et le **club cible** (l'enregistrement canonique à conserver)
+4. Cliquer **Fusionner** — tous les athlètes et inscriptions du club source sont rattachés au club cible, et le club source est supprimé
+5. Répéter jusqu'à ce qu'il n'y ait plus de doublons
+
+> **Conseil :** Commencer par les doublons les plus évidents (même nom, code différent). Les codes de clubs issus de fichiers anciens ou non standardisés sont la source la plus fréquente de doublons.
+
+### Étape C — Fusionner les UIDs de style divergents
+
+Chaque fichier de compétition SPLASH définit ses propres UIDs de style pour les disciplines (p. ex. la même discipline peut apparaître sous `ID001` dans un fichier et `ID045` dans un autre). Les meilleurs temps étant stockés par UID de style, un même athlète peut se retrouver avec deux enregistrements distincts pour la même discipline.
+
+1. Dans la page **Gestion des données**, aller à la section **Fusionner les styles**
+2. La liste affiche tous les UIDs de style distincts présents dans la base de données, avec leurs noms associés
+3. Pour chaque paire d'UIDs représentant la même discipline, sélectionner l'**UID source** (à éliminer) et l'**UID cible** (canonique — généralement celui du fichier de compétition le plus récent ou le plus complet)
+4. Cliquer **Fusionner** — les meilleurs temps de l'UID source sont fusionnés dans l'UID cible en conservant le temps le plus rapide par taille de bassin (LCM / SCM) pour chaque athlète ; les enregistrements de l'UID source sont supprimés
+5. Répéter pour toutes les paires de styles divergents
+
+> **Conseil :** Croiser les noms de styles affichés dans la liste avec les définitions d'épreuves dans SPLASH pour confirmer que vous fusionnez les bonnes disciplines.
+
+### Étape D — Exporter le fichier d'inscriptions consolidé
+
+Une fois les clubs et les styles entièrement réconciliés :
+
+1. Dans la page **Gestion des données**, cliquer **Télécharger les inscriptions (.lxf)**
+2. Sauvegarder ce fichier — c'est un export Lenex propre de tous les clubs, athlètes et meilleurs temps consolidés
+3. Utiliser ce fichier comme point de départ pour la prochaine compétition (Étape 1 du flux de travail principal)
+
+### Résumé
+
+| Étape | Action | Qui | Outil |
+|-------|--------|-----|-------|
+| A | Téléverser chaque fichier d'inscriptions/résultats passé | Admin | Meet Manager App |
+| B | Fusionner les clubs en double | Admin | Meet Manager App — Gestion des données |
+| C | Fusionner les UIDs de style divergents | Admin | Meet Manager App — Gestion des données |
+| D | Exporter le fichier d'inscriptions consolidé | Admin | Meet Manager App — Gestion des données |

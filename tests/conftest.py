@@ -13,6 +13,7 @@ import requests
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
+TEST_ENV_FILE = Path(__file__).resolve().parent / "test.env"
 MEET_TEMPLATE = FIXTURES / "meet_template.lxf"
 ENTRIES_FILE = FIXTURES / "test_entries.lxf"
 RESULTS_FILE = FIXTURES / "test_results.lxf"
@@ -28,7 +29,7 @@ SKIP_STACK = os.environ.get("MEETMGR_SKIP_STACK") == "1"
 
 def _run_compose(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(
-        ["docker", "compose", *args],
+        ["docker", "compose", "--env-file", str(TEST_ENV_FILE), *args],
         cwd=REPO_ROOT, check=check, capture_output=True,
     )
 

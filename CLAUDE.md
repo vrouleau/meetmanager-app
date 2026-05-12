@@ -73,7 +73,7 @@ meetmanager-app/
 | `events` | id, splash_event_id, style_uid, style_name, distance, relay_count, gender, event_number, round, masters, fee_cents, session_id |
 | `age_groups` | id, event_id, splash_agegroup_id, age_min, age_max |
 | `registrations` | id, athlete_id, event_id, age_code, entry_time_ms |
-| `best_times` | id, athlete_id, style_uid, time_ms, course (LCM/SCM) |
+| `best_times` | id, athlete_id, style_uid, time_ms, course (LCM/SCM), recorded_on (date of source meet; shared across LCM/SCM for same style) |
 | `secret_links` | id, token (UUID), club_id, pin_encrypted, expires_at, viewed, lang |
 | `app_config` | key (PK), value — key-value store for meet metadata |
 
@@ -102,6 +102,7 @@ APP_BASE_URL=       # public URL for links in emails
 SECRET_KEY=         # Fernet encryption key for PIN in secret links
 STRIPE_API_KEY=     # Stripe secret key for invoice generation
 DATABASE_URL=       # set automatically by Docker Compose
+BEST_TIME_MAX_AGE_MONTHS=  # months before a best time is considered stale (default: 18)
 ```
 
 ## API endpoints (all `/api/...`)

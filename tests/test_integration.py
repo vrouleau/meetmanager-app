@@ -589,3 +589,44 @@ class TestDataManagement:
                           json={"merges": []},
                           headers=coach_headers, timeout=5)
         assert r.status_code == 403
+
+    def test_style_names_are_not_id_prefixed(self, uploaded, admin_headers):
+        """Style names must be human-readable, never the raw ID{uid} fallback."""
+        r = requests.get(f"{BASE_URL}/api/data-management/styles",
+                         headers=admin_headers, timeout=10)
+        r.raise_for_status()
+        styles = r.json()
+        if not styles:
+            pytest.skip("No best-time styles in DB")
+        for s in styles:
+            assert not re.match(r"^ID\d+$", s["name"]), (
+                f"style uid={s['uid']} has unresolved name {s['name']!r} — "
+                "style_names_json may not have been populated on results import"
+            )
+
+    def test_style_names_survive_meet_flush(self, uploaded, results_path, admin_headers):
+        """After flushing the meet (events table cleared), style names must still
+        resolve from the style_names_json cache rather than falling back to ID{uid}."""
+        # Upload results so style_names_json is populated, then flush the meet.
+        with open(results_path, "rb") as f:
+            r = requests.post(
+                f"{BASE_URL}/api/upload/results",
+                files={"file": ("results.lxf", f, "application/octet-stream")},
+                headers=admin_headers, timeout=60,
+            )
+        r.raise_for_status()
+
+        r = requests.delete(f"{BASE_URL}/api/registrations",
+                            headers=admin_headers, timeout=10)
+        r.raise_for_status()
+        # Events are now gone; style_names_json should carry the names.
+        r = requests.get(f"{BASE_URL}/api/data-management/styles",
+                         headers=admin_headers, timeout=10)
+        r.raise_for_status()
+        styles = r.json()
+        assert styles, "styles list must not be empty — best_times should survive flush"
+        for s in styles:
+            assert not re.match(r"^ID\d+$", s["name"]), (
+                f"style uid={s['uid']} name {s['name']!r} not resolved after meet flush; "
+                "style_names_json cache is missing or not being read"
+            )

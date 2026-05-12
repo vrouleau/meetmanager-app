@@ -7,8 +7,10 @@ from datetime import date as _date
 from io import BytesIO
 from xml.etree import ElementTree as ET
 
+import json as _json
+
 from sqlalchemy.orm import Session
-from .models import Athlete, BestTime, Club, Gender
+from .models import AppConfig, Athlete, BestTime, Club, Gender
 
 
 def _lenex_time_to_ms(t: str) -> int | None:
@@ -118,16 +120,21 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                 if recorded_on:
                     break
 
-    # Build eventid -> style_uid map from the Lenex events
+    # Build eventid -> style_uid map and uid -> name from the Lenex events
     event_style: dict[str, int] = {}
+    style_names: dict[int, str] = {}
     for event_el in root.iter("EVENT"):
         eid = event_el.get("eventid", "")
         for ss in event_el.iter("SWIMSTYLE"):
-            uid = ss.get("swimstyleid") or ss.get("stroke", "")
+            uid_raw = ss.get("swimstyleid") or ss.get("stroke", "")
             try:
-                event_style[eid] = int(uid)
+                uid_int = int(uid_raw)
             except (ValueError, TypeError):
-                pass
+                continue
+            event_style[eid] = uid_int
+            name = ss.get("name", "")
+            if name and uid_int not in style_names:
+                style_names[uid_int] = name
 
     updated = 0
     skipped = 0
@@ -222,6 +229,21 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
             for ath in roster:
                 if _upsert_best_time(db, ath.id, style_uid, best, course, source, recorded_on):
                     updated += 1
+
+    # Persist style uid→name so the Data Management page can show names even without a meet file.
+    if style_names:
+        cfg = db.query(AppConfig).get("style_names_json")
+        existing: dict[int, str] = _json.loads(cfg.value) if cfg else {}
+        # Convert keys to int for merge; new names win if uid not already known
+        merged = {int(k): v for k, v in existing.items()}
+        for uid, name in style_names.items():
+            if uid not in merged:
+                merged[uid] = name
+        payload = _json.dumps({str(k): v for k, v in merged.items()})
+        if cfg:
+            cfg.value = payload
+        else:
+            db.add(AppConfig(key="style_names_json", value=payload))
 
     db.commit()
     return {"times_updated": updated, "athletes_skipped": skipped, "athletes_created": athletes_created}

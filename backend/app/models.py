@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from sqlalchemy import (
-    Column, Integer, String, Date, DateTime, ForeignKey, Boolean,
+    Column, Integer, String, Text, Date, DateTime, ForeignKey, Boolean,
     UniqueConstraint, Enum as SAEnum,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
@@ -131,4 +131,4 @@ class SecretLink(Base):
 class AppConfig(Base):
     __tablename__ = "app_config"
     key = Column(String(50), primary_key=True)
-    value = Column(String(500))
+    value = Column(Text)

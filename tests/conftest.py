@@ -73,7 +73,7 @@ def entries_path() -> Path:
     """Regenerate the entries .lxf if missing."""
     if not ENTRIES_FILE.exists():
         subprocess.run(
-            ["python", "tests/generate_test_entries.py", "--out", str(ENTRIES_FILE)],
+            ["python3", "tests/generate_test_entries.py", "--out", str(ENTRIES_FILE)],
             cwd=REPO_ROOT, check=True,
         )
     return ENTRIES_FILE
@@ -84,7 +84,7 @@ def results_path(entries_path) -> Path:
     """Regenerate the results .lxf if missing (depends on entries fixture)."""
     if not RESULTS_FILE.exists():
         subprocess.run(
-            ["python", "tests/generate_test_results.py",
+            ["python3", "tests/generate_test_results.py",
              "--meet", str(MEET_TEMPLATE),
              "--entries", str(entries_path),
              "--out", str(RESULTS_FILE)],

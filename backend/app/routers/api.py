@@ -1155,12 +1155,16 @@ def export_meet_lxf():
 @router.get("/data-management/styles", dependencies=[Depends(require_admin)])
 def get_styles(db: Session = Depends(get_db)):
     """List all unique style_uids present in best_times with display names."""
+    import json as _json
     from sqlalchemy import distinct as sq_distinct
+    cfg = db.query(AppConfig).get("style_names_json")
+    imported_names: dict[int, str] = {int(k): v for k, v in _json.loads(cfg.value).items()} if cfg else {}
     rows = db.query(sq_distinct(BestTime.style_uid)).all()
     result = []
     for (uid,) in rows:
         ev = db.query(Event).filter(Event.style_uid == uid).first()
-        result.append({"uid": uid, "name": ev.style_name if ev else f"ID{uid}"})
+        name = ev.style_name if ev else imported_names.get(uid, f"ID{uid}")
+        result.append({"uid": uid, "name": name})
     return sorted(result, key=lambda x: x["uid"])
 
 

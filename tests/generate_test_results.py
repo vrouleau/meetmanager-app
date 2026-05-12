@@ -93,6 +93,7 @@ def parse_meet_events(meet_path: Path):
         events.append({
             "eventid": ev.get("eventid", ""),
             "swimstyleid": ss.get("swimstyleid", ""),
+            "style_name": ss.get("name", ""),
             "gender": ev.get("gender", ""),
             "distance": int(ss.get("distance", "0") or 0),
             "relaycount": int(ss.get("relaycount", "1") or 1),
@@ -190,12 +191,15 @@ def write_lxf(course: str, events: list[dict], clubs: list[dict],
             "gender": ev["gender"] or "X",
             "round": "TIM",
         })
-        ET.SubElement(ev_xml, "SWIMSTYLE", {
+        ss_attrs = {
             "swimstyleid": ev["swimstyleid"],
             "distance": str(ev["distance"]),
             "relaycount": str(ev["relaycount"]),
             "stroke": "UNKNOWN",
-        })
+        }
+        if ev.get("style_name"):
+            ss_attrs["name"] = ev["style_name"]
+        ET.SubElement(ev_xml, "SWIMSTYLE", ss_attrs)
 
     clubs_xml = ET.SubElement(meet, "CLUBS")
     for c in clubs:

@@ -38,7 +38,6 @@ Avant d'exporter le fichier d'invitation `.lxf` depuis SPLASH, vérifier que les
 | Types et montants des frais | Les postes de facturation sont absents ou à zéro |
 | Devise des frais | La devise de la facture reste vide |
 | Frais par épreuve sur les épreuves de chronométrage | Les lignes de facturation par inscription sont à zéro |
-| Swimstyle ID sur chaque épreuve | L'épreuve ne peut pas être liée aux meilleurs temps ; la colonne reste vide |
 | Groupes d'âge sur chaque épreuve | La liste déroulante de catégorie n'a aucune option valide pour l'épreuve |
 
 ---

@@ -162,25 +162,30 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                         pass
                 athletes_created += 1
 
-            # Collect best candidate times per event: entry time and result time
-            event_times: dict[str, list[int]] = {}
+            # Collect best candidate times per (event, course) pair.
+            # entrycourse on individual ENTRY elements overrides the meet-level course
+            # so that a multi-course export/backup round-trips correctly.
+            event_times: dict[tuple[str, str], list[int]] = {}
             for entry_el in ath_el.iter("ENTRY"):
                 eid = entry_el.get("eventid", "")
                 t = _lenex_time_to_ms(entry_el.get("entrytime", ""))
                 if t and eid:
-                    event_times.setdefault(eid, []).append(t)
+                    ec = entry_el.get("entrycourse", "") or course
+                    if ec not in ("LCM", "SCM"):
+                        ec = course
+                    event_times.setdefault((eid, ec), []).append(t)
             for result_el in ath_el.iter("RESULT"):
                 eid = result_el.get("eventid", "")
                 t = _lenex_time_to_ms(result_el.get("swimtime", ""))
                 if t and eid:
-                    event_times.setdefault(eid, []).append(t)
+                    event_times.setdefault((eid, course), []).append(t)
 
-            for eid, times in event_times.items():
+            for (eid, ev_course), times in event_times.items():
                 style_uid = event_style.get(eid)
                 if not style_uid:
                     continue
                 if _upsert_best_time(db, athlete.id, style_uid,
-                                     min(times), course, source, recorded_on):
+                                     min(times), ev_course, source, recorded_on):
                     updated += 1
 
     # Relay BT: each member of a team gets the team time recorded against the

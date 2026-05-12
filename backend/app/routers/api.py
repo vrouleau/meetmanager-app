@@ -18,6 +18,7 @@ from ..models import Club, Athlete, Event, Registration, BestTime, AppConfig, Ge
 from ..seed import seed_from_lxf
 from ..best_times import load_best_times
 from ..export import generate_lxf
+from ..export_entries import generate_entries_lxf
 from ..invoices import create_invoice_for_club
 
 router = APIRouter(prefix="/api")
@@ -1126,3 +1127,117 @@ def export_lenex(db: Session = Depends(get_db)):
         media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=inscriptions_bundle.zip"},
     )
+
+
+@router.get("/export/entries", dependencies=[Depends(require_admin)])
+def export_entries_lxf(db: Session = Depends(get_db)):
+    """Download a Lenex .lxf with all clubs, athletes, and best times (no registrations)."""
+    data = generate_entries_lxf(db)
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=entries.lxf"},
+    )
+
+
+@router.get("/export/meet-lxf", dependencies=[Depends(require_organizer_or_admin)])
+def export_meet_lxf():
+    """Download the currently uploaded meet .lxf file."""
+    if not MEET_STORAGE.exists():
+        raise HTTPException(404, "No meet uploaded")
+    return Response(
+        content=MEET_STORAGE.read_bytes(),
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=meet.lxf"},
+    )
+
+
+@router.get("/data-management/styles", dependencies=[Depends(require_admin)])
+def get_styles(db: Session = Depends(get_db)):
+    """List all unique style_uids present in best_times with display names."""
+    from sqlalchemy import distinct as sq_distinct
+    rows = db.query(sq_distinct(BestTime.style_uid)).all()
+    result = []
+    for (uid,) in rows:
+        ev = db.query(Event).filter(Event.style_uid == uid).first()
+        result.append({"uid": uid, "name": ev.style_name if ev else f"ID{uid}"})
+    return sorted(result, key=lambda x: x["uid"])
+
+
+@router.post("/data-management/merge-clubs", dependencies=[Depends(require_admin)])
+def merge_clubs(data: dict, db: Session = Depends(get_db)):
+    """Merge clubs: move all athletes to the target club, delete the source club."""
+    merges = data.get("merges", [])
+    merged = 0
+    for m in merges:
+        from_id = int(m["from_id"])
+        to_id = int(m["to_id"])
+        if from_id == to_id:
+            continue
+        from_club = db.query(Club).filter(Club.id == from_id).first()
+        to_club = db.query(Club).filter(Club.id == to_id).first()
+        if not from_club or not to_club:
+            continue
+
+        for ath in list(from_club.athletes):
+            existing = db.query(Athlete).filter(
+                Athlete.first_name == ath.first_name,
+                Athlete.last_name == ath.last_name,
+                Athlete.club_id == to_id,
+            ).first()
+            if not existing:
+                ath.club_id = to_id
+            else:
+                # Merge best times into the existing athlete, keep the faster time
+                for bt in list(ath.best_times):
+                    existing_bt = db.query(BestTime).filter(
+                        BestTime.athlete_id == existing.id,
+                        BestTime.style_uid == bt.style_uid,
+                        BestTime.course == bt.course,
+                    ).first()
+                    if not existing_bt:
+                        bt.athlete_id = existing.id
+                    else:
+                        if bt.time_ms < existing_bt.time_ms:
+                            existing_bt.time_ms = bt.time_ms
+                        db.delete(bt)
+                for reg in list(ath.registrations):
+                    db.delete(reg)
+                db.flush()
+                db.delete(ath)
+
+        db.flush()
+        db.delete(from_club)
+        merged += 1
+
+    db.commit()
+    return {"merged": merged}
+
+
+@router.post("/data-management/merge-styles", dependencies=[Depends(require_admin)])
+def merge_styles(data: dict, db: Session = Depends(get_db)):
+    """Remap best_time rows from one style_uid to another, keeping the faster time."""
+    merges = data.get("merges", [])
+    merged_rows = 0
+    for m in merges:
+        from_uid = int(m["from_uid"])
+        to_uid = int(m["to_uid"])
+        if from_uid == to_uid:
+            continue
+        for bt in db.query(BestTime).filter(BestTime.style_uid == from_uid).all():
+            existing = db.query(BestTime).filter(
+                BestTime.athlete_id == bt.athlete_id,
+                BestTime.style_uid == to_uid,
+                BestTime.course == bt.course,
+            ).first()
+            if not existing:
+                bt.style_uid = to_uid
+                merged_rows += 1
+            else:
+                if bt.time_ms < existing.time_ms:
+                    existing.time_ms = bt.time_ms
+                db.delete(bt)
+                merged_rows += 1
+
+    db.commit()
+    return {"merged_rows": merged_rows}

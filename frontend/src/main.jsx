@@ -8,6 +8,7 @@ import Athletes from './pages/Athletes'
 import Register from './pages/Register'
 import Admin from './pages/Admin'
 import Organizer from './pages/Organizer'
+import DataManagement from './pages/DataManagement'
 import Secret from './pages/Secret'
 
 function AppInner() {
@@ -50,6 +51,7 @@ function AppInner() {
         <Link to="/" className="hover:underline">{t.athletes}</Link>
         {canOrganizer && <Link to="/organizer" className="hover:underline">{t.organizer}</Link>}
         {canAdmin && <Link to="/admin" className="hover:underline">{t.admin}</Link>}
+        {canAdmin && <Link to="/data-management" className="hover:underline">{t.data_management}</Link>}
         <div className="flex-1" />
         {meetName && <span className="font-semibold bg-blue-600 px-2 py-1 rounded text-sm">{meetName}</span>}
         <button onClick={toggle} className="text-xs bg-gray-600 px-2 py-1 rounded">
@@ -63,6 +65,7 @@ function AppInner() {
         <Route path="/athletes/:id/register" element={<Register />} />
         {canOrganizer && <Route path="/organizer" element={<Organizer />} />}
         {canAdmin && <Route path="/admin" element={<Admin />} />}
+        {canAdmin && <Route path="/data-management" element={<DataManagement />} />}
         <Route path="/secret/:token" element={<Secret />} />
       </Routes>
     </BrowserRouter>

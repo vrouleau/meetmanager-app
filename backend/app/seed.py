@@ -49,6 +49,7 @@ def parse_lxf(file_bytes: bytes) -> list[dict]:
                         "gender": ath_el.get("gender", "M"),
                         "birthdate": birthdate,
                         "license": ath_el.get("license", ""),
+                        "exception": ath_el.get("exception", "") or None,
                     })
                 clubs_data.append(club_info)
     return clubs_data
@@ -92,6 +93,7 @@ def seed_from_lxf(db: Session, file_bytes: bytes) -> dict:
                     gender=gender,
                     birthdate=ad["birthdate"],
                     license=ad["license"],
+                    exception=ad.get("exception"),
                     club_id=club.id,
                 )
                 db.add(ath)

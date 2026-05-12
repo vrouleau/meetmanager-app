@@ -130,8 +130,8 @@ This file imports clubs, athletes, and entry-time best times in a single pass.
 
 | SPLASH setting | What breaks if missing |
 |---|---|
-| Club name (exact) | Club is not matched; a duplicate may be created on re-import |
-| Club code and nation | Cosmetic only, but kept in sync on every import |
+| Club code (exact) | Club is not matched; a duplicate may be created on re-import |
+| Club name and nation | Cosmetic only, but kept in sync on every import |
 | Club contact email | Admin cannot receive PIN invitation emails |
 | Athlete first and last name | Athlete cannot be matched; duplicate created |
 | Athlete gender | Defaults to M for newly created athletes |

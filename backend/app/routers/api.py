@@ -777,7 +777,10 @@ async def upload_preview(file: UploadFile = File(...), db: Session = Depends(get
     clubs_new = 0
     athletes_new = 0
     for cd in clubs_data:
-        club = db.query(Club).filter(Club.name == cd["name"]).first()
+        if cd.get("code"):
+            club = db.query(Club).filter(Club.code == cd["code"]).first()
+        else:
+            club = db.query(Club).filter(Club.name == cd["name"]).first()
         if not club:
             clubs_new += 1
             athletes_new += len(cd["athletes"])

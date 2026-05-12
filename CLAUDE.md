@@ -61,7 +61,7 @@ meetmanager-app/
 
 | Table | Key columns |
 |---|---|
-| `clubs` | id, name, code, nation, pin (6-digit), admin_email, stripe_account_id |
+| `clubs` | id, name, code (unique — import key), nation, pin (6-digit), admin_email, stripe_account_id |
 | `athletes` | id, first_name, last_name, gender, birthdate, license, exception ('X'=Masters), club_id |
 | `events` | id, splash_event_id, style_uid, style_name, distance, relay_count, gender, event_number, round, masters, fee_cents, session_id |
 | `age_groups` | id, event_id, splash_agegroup_id, age_min, age_max |

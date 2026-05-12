@@ -62,7 +62,10 @@ def seed_from_lxf(db: Session, file_bytes: bytes) -> dict:
     athletes_added = 0
 
     for cd in clubs_data:
-        club = db.query(Club).filter(Club.name == cd["name"]).first()
+        if cd.get("code"):
+            club = db.query(Club).filter(Club.code == cd["code"]).first()
+        else:
+            club = db.query(Club).filter(Club.name == cd["name"]).first()
         if not club:
             import random
             pin = f"{random.randint(100000, 999999)}"

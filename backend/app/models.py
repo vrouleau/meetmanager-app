@@ -22,8 +22,8 @@ class Gender(enum.Enum):
 class Club(Base):
     __tablename__ = "clubs"
     id = Column(Integer, primary_key=True)
-    name = Column(String(100), unique=True, nullable=False)
-    code = Column(String(20))
+    name = Column(String(100), nullable=False)
+    code = Column(String(20), unique=True)
     nation = Column(String(3))
     pin = Column(String(6))
     admin_email = Column(String(200))

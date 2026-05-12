@@ -162,8 +162,12 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
     athlete_by_lenex_id: dict[str, Athlete] = {}
 
     for club_el in root.iter("CLUB"):
+        club_code = club_el.get("code", "")
         club_name = club_el.get("name", "")
-        club = db.query(Club).filter(Club.name == club_name).first()
+        if club_code:
+            club = db.query(Club).filter(Club.code == club_code).first()
+        else:
+            club = db.query(Club).filter(Club.name == club_name).first()
         for ath_el in club_el.iter("ATHLETE"):
             first = ath_el.get("firstname", "")
             last = ath_el.get("lastname", "")

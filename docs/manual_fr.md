@@ -335,4 +335,6 @@ Le temps d'inscription se pré-remplit depuis le meilleur temps de l'athlète po
 | `APP_BASE_URL` | URL publique utilisée dans les liens des courriels | — |
 | `SECRET_KEY` | Clé Fernet pour chiffrer les NIPs dans les liens sécurisés | — |
 | `STRIPE_API_KEY` | Clé secrète Stripe pour la génération de factures | — |
+| `MEET_TEMPLATE` | Chemin vers le fichier .lxf modèle servi aux organisateurs | `/app/templates/meet.lxf` |
+| `BEST_TIME_MAX_AGE_MONTHS` | Mois avant qu'un meilleur temps soit considéré périmé et supprimé | `18` |
 | `DATABASE_URL` | Chaîne de connexion PostgreSQL (définie par Docker Compose) | — |

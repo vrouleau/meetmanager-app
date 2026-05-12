@@ -336,4 +336,6 @@ The entry time pre-fills from the athlete's best time for the pool size matching
 | `APP_BASE_URL` | Public URL used in email links | — |
 | `SECRET_KEY` | Fernet key for encrypting PINs in secret links | — |
 | `STRIPE_API_KEY` | Stripe secret key for invoice generation | — |
+| `MEET_TEMPLATE` | Path to the meet template .lxf served to organizers | `/app/templates/meet.lxf` |
+| `BEST_TIME_MAX_AGE_MONTHS` | Months before a best time is considered stale and purged | `18` |
 | `DATABASE_URL` | PostgreSQL connection string (set by Docker Compose) | — |

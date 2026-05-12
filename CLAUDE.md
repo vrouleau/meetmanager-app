@@ -44,7 +44,13 @@ meetmanager-app/
 │   └── buildInfo.js           # Build timestamp injected at build time
 ├── quantum/
 │   └── LSTSTYLE.en-UK         # Swiss Timing Quantum style seed file
-├── docs/                      # Workflow screenshots and PDFs
+├── docs/                      # Documentation (markdown + generated PDFs)
+│   ├── assets/                # Screenshots used in docs
+│   ├── workflow_en.md/pdf     # Quick-start workflow (English)
+│   ├── workflow_fr.md/pdf     # Quick-start workflow (French)
+│   ├── manual_en.md/pdf       # Full user manual (English)
+│   ├── manual_fr.md/pdf       # Full user manual (French)
+│   └── pdf-header.tex         # Pandoc LaTeX header for PDF generation
 ├── tests/                     # Integration tests (real PostgreSQL)
 └── docker-compose.yml
 ```

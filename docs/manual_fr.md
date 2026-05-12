@@ -44,6 +44,7 @@ La section **Téléverser Lenex (.lxf)** accepte un fichier `.lxf` au format Len
 - Un aperçu indique le nombre de clubs et d'athlètes dans le fichier et combien sont nouveaux
 - Confirmer pour continuer — les clubs et athlètes existants sont associés par code de club et numéro de licence NRAN, sans modification
 - Les nouveaux meilleurs temps sont importés et fusionnés (le temps le plus rapide par style et par taille de bassin est conservé)
+- Chaque meilleur temps est horodaté avec la date de la compétition source. Les temps de plus de 18 mois sont automatiquement supprimés à l'ouverture de la page d'inscription d'un athlète.
 
 Utiliser cette fonction pour initialiser l'application avant la première compétition de la saison, ou après chaque compétition pour importer les résultats.
 
@@ -212,7 +213,7 @@ Cliquer sur le nom d'un athlète pour ouvrir la page **Inscription** de cet athl
 La section **Épreuves individuelles** liste toutes les épreuves disponibles en fonction du genre. Pour chaque épreuve :
 
 - **Catégorie** — groupe d'âge suggéré automatiquement selon l'âge de l'athlète et l'année de la compétition (10-, 11-12, 13-14, 15-18, Open). Masters n'est jamais suggéré automatiquement.
-- **Meilleur temps 50m / Meilleur temps 25m** — affiché en lecture seule depuis les meilleurs temps de l'athlète
+- **Meilleur temps 50m / Meilleur temps 25m** — affiché en lecture seule depuis les meilleurs temps de l'athlète. Les temps de plus de 18 mois sont considérés comme expirés et n'apparaissent pas.
 - **Temps d'inscription** — pré-rempli à partir du meilleur temps correspondant à la taille du bassin de la compétition ; modifiable
 - Cocher la case de l'épreuve pour inscrire ; décocher pour désincrire
 

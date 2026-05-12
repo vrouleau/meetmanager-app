@@ -116,8 +116,8 @@ Avant d'exporter le fichier d'invitation `.lxf` depuis SPLASH, vérifier que les
 ## Étape 11 — Admin : Téléverser les résultats pour mettre à jour les meilleurs temps
 
 1. Dans la page **Admin**, téléverser le fichier `.lxf` des résultats sous **Téléverser Lenex (.lxf)**
-2. Les meilleurs temps sont mis à jour (le plus rapide entre le temps d'inscription et le résultat, par taille de bassin)
-3. Ces temps pré-rempliront les temps d'inscription pour la prochaine compétition
+2. Les meilleurs temps sont mis à jour (le plus rapide entre le temps d'inscription et le résultat, par taille de bassin) et horodatés avec la date de la compétition
+3. Ces temps pré-rempliront les temps d'inscription pour la prochaine compétition ; les temps de plus de 18 mois sont automatiquement supprimés
 
 ---
 

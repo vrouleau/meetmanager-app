@@ -44,6 +44,7 @@ The **Upload Lenex (.lxf)** section accepts a Lenex-format `.lxf` file (entries 
 - A preview shows how many clubs and athletes are in the file and how many are new
 - Confirm to proceed — existing clubs and athletes are matched by club code and NRAN license, not overwritten
 - New best times are imported and merged (fastest time per style per pool size is kept)
+- Each best time is stamped with the date of the source meet. Times older than 18 months are automatically purged when an athlete's registration page is opened.
 
 Use this to seed the app before the first meet of the season, or after each meet to import results.
 
@@ -213,7 +214,7 @@ Click on an athlete's name to open the **Registration** page for that athlete.
 The **Individual Events** section lists all available events grouped by gender match. For each event:
 
 - **Category** — age group automatically suggested based on the athlete's age and the meet year (10-, 11-12, 13-14, 15-18, Open). Masters is never auto-suggested.
-- **Best Time 50m / Best Time 25m** — displayed read-only from the athlete's stored best times
+- **Best Time 50m / Best Time 25m** — displayed read-only from the athlete's stored best times. Times older than 18 months are considered expired and will not appear.
 - **Entry Time** — pre-filled from the best time matching the meet pool size; can be edited
 - Check the event checkbox to register; uncheck to deregister
 

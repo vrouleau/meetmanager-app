@@ -116,8 +116,8 @@ Before exporting the invitation `.lxf` from SPLASH, verify that the following fi
 ## Step 11 — Admin: Upload Results to Update Best Times
 
 1. In the **Admin** page, upload the results `.lxf` under **Upload Lenex (.lxf)**
-2. Best times are updated (fastest of entry time vs. result, per pool size)
-3. These times will pre-fill entry times for the next meet
+2. Best times are updated (fastest of entry time vs. result, per pool size) and stamped with the meet date
+3. These times will pre-fill entry times for the next meet; times older than 18 months are automatically discarded
 
 ---
 

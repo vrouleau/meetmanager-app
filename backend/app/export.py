@@ -9,7 +9,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from sqlalchemy.orm import Session, joinedload
-from .models import Club, Athlete, Event, Registration
+from .models import Club, Athlete, Event, Registration, BestTime
 
 
 def _ms_to_lenex(ms: int | None) -> str:
@@ -138,7 +138,20 @@ def generate_lxf(db: Session) -> bytes:
                     entry_attrs["agegroupid"] = str(ag.splash_agegroup_id)
                 if reg.entry_time_ms:
                     entry_attrs["entrytime"] = _ms_to_lenex(reg.entry_time_ms)
-                ET.SubElement(entries_xml, "ENTRY", entry_attrs)
+                entry_xml = ET.SubElement(entries_xml, "ENTRY", entry_attrs)
+                if reg.entry_time_ms:
+                    # Look up best time date for this event's style
+                    bt = db.query(BestTime).filter(
+                        BestTime.athlete_id == ath.id,
+                        BestTime.style_uid == ev.style_uid,
+                        BestTime.course == (meet_struct.course or "LCM"),
+                    ).first() if ev.style_uid else None
+                    meetinfo_attrs = {
+                        "qualificationtime": _ms_to_lenex(reg.entry_time_ms),
+                        "course": meet_struct.course or "LCM",
+                        "date": str(bt.recorded_on) if bt and bt.recorded_on else str(date.today()),
+                    }
+                    ET.SubElement(entry_xml, "MEETINFO", meetinfo_attrs)
 
     xml_bytes = ET.tostring(root, encoding="unicode", xml_declaration=True).encode("utf-8")
 

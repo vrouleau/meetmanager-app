@@ -231,7 +231,7 @@ export default function Admin() {
               <tbody>
                 {clubs.map(c => (
                   <tr key={c.id} className="border-b hover:bg-gray-50">
-                    <td className="p-2">{c.name} <span className="text-xs text-gray-400">({c.athlete_count}, PIN:{c.pin})</span></td>
+                    <td className="p-2">{c.name} <span className="text-xs text-gray-400">({c.athlete_count}, PIN: {c.pin || '—'})</span></td>
                     <td className="p-2">
                       <input type="email" className="border p-1 rounded w-full text-sm"
                         defaultValue={c.admin_email}

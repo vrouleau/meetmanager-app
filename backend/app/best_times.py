@@ -193,9 +193,10 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                 athletes_created += 1
 
             # Collect best candidate times per (event, course) pair.
+            # Each entry is (time_ms, date) so the winning time carries its own date.
             # entrycourse on individual ENTRY elements overrides the meet-level course
             # so that a multi-course export/backup round-trips correctly.
-            event_times: dict[tuple[str, str], list[int]] = {}
+            event_times: dict[tuple[str, str], list[tuple[int, _date | None]]] = {}
             for entry_el in ath_el.iter("ENTRY"):
                 eid = entry_el.get("eventid", "")
                 t = _lenex_time_to_ms(entry_el.get("entrytime", ""))
@@ -203,19 +204,30 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                     ec = entry_el.get("entrycourse", "") or course
                     if ec not in ("LCM", "SCM"):
                         ec = course
-                    event_times.setdefault((eid, ec), []).append(t)
+                    # Use MEETINFO date as qualification date for entry times
+                    entry_date: _date | None = None
+                    mi = entry_el.find("MEETINFO")
+                    if mi is not None:
+                        raw_d = mi.get("date", "")
+                        if raw_d:
+                            try:
+                                entry_date = _date.fromisoformat(raw_d[:10])
+                            except ValueError:
+                                pass
+                    event_times.setdefault((eid, ec), []).append((t, entry_date))
             for result_el in ath_el.iter("RESULT"):
                 eid = result_el.get("eventid", "")
                 t = _lenex_time_to_ms(result_el.get("swimtime", ""))
                 if t and eid:
-                    event_times.setdefault((eid, course), []).append(t)
+                    event_times.setdefault((eid, course), []).append((t, recorded_on))
 
             for (eid, ev_course), times in event_times.items():
                 style_uid = event_style.get(eid)
                 if not style_uid:
                     continue
+                best_time, best_date = min(times, key=lambda x: x[0])
                 if _upsert_best_time(db, athlete.id, style_uid,
-                                     min(times), ev_course, source, recorded_on):
+                                     best_time, ev_course, source, best_date):
                     updated += 1
 
     # Relay BT: each member of a team gets the team time recorded against the

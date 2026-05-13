@@ -180,6 +180,10 @@ BEST_TIME_MAX_AGE_MONTHS=  # months before a best time is considered stale (defa
 
 **Export**: `/export` returns a .zip containing the registrations .lxf plus `simulate_results.bat` and `simulate_results.vbs` (scripts for simulating results in SPLASH on meet day).
 
+**Entries export** (`/export/entries`): Each ENTRY includes a `MEETINFO` sub-element with `qualificationtime` (same value as `entrytime`), `course` (LCM/SCM), and `date` (from `best_times.recorded_on`, omitted if null). This serves as proof of qualification time in the Lenex file.
+
+**Best-time date tracking** (results import): Each time source carries its own `recorded_on`. Result times (`RESULT` elements) use the session date (or today as fallback). Entry/qualification times (`ENTRY` elements) use the `MEETINFO.date` attribute from the Lenex file. When the fastest time is selected, its associated date is passed to the upsert — so a qualification time from a previous meet keeps its original date rather than being stamped with the current meet's session date.
+
 **Meet template**: `/export/meet-smb` serves the file stored at `MEET_TEMPLATE` (env var, default `/app/templates/meet.smb`). The `.smb` is the primary template — it preserves SPLASH combined-event definitions (scoring rules) that are not exported in Lenex `.lxf` files. Organizer downloads it, opens it in SPLASH to restore the full meet structure including combined events, customises the meet, then exports a new invitation `.lxf` and uploads it back via `/upload/meet`.
 
 **Data Management** (`DataManagement.jsx`, admin-only):

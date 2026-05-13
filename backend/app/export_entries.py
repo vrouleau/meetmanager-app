@@ -89,11 +89,18 @@ def generate_entries_lxf(db: Session) -> bytes:
             if ath.best_times:
                 entries_xml = ET.SubElement(ath_xml, "ENTRIES")
                 for bt in ath.best_times:
-                    ET.SubElement(entries_xml, "ENTRY", {
+                    entry_xml = ET.SubElement(entries_xml, "ENTRY", {
                         "eventid": str(bt.style_uid),
                         "entrycourse": bt.course,
                         "entrytime": _ms_to_lenex(bt.time_ms),
                     })
+                    meetinfo_attrs = {
+                        "qualificationtime": _ms_to_lenex(bt.time_ms),
+                        "course": bt.course,
+                    }
+                    if bt.recorded_on:
+                        meetinfo_attrs["date"] = str(bt.recorded_on)
+                    ET.SubElement(entry_xml, "MEETINFO", meetinfo_attrs)
 
     xml_bytes = ET.tostring(root, encoding="unicode", xml_declaration=True).encode("utf-8")
 

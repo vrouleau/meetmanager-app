@@ -8,7 +8,7 @@ Web-based registration management for lifesaving competitions. Integrates with S
 
 ### Imports
 - **Meet file** — loads event structure, sessions, age groups, fees, and pool type (LCM/SCM) from a SPLASH-exported .lxf; replaces the previous meet and resets all registrations
-- **Entries file** — imports clubs, athletes, and entry-time best times from a Lenex entries .lxf in a single pass
+- **Entries file** — imports clubs, athletes, and entry-time best times from a Lenex entries .lxf in a single pass; also loads event structure (events, age groups, fees) if no meet has been uploaded yet
 - **Results file** — imports best times from a SPLASH results .lxf; reads session dates, both individual and relay times; credits relay times to every team member
 
 ### Exports

@@ -218,14 +218,33 @@ def set_closure_date(data: dict, db: Session = Depends(get_db)):
 
 @router.get("/clubs")
 def list_clubs(request: Request, db: Session = Depends(get_db)):
+    from sqlalchemy import func, distinct
+    from ..invoices import _club_line_items, _meet_fees
+
     pin = request.headers.get("X-Club-Pin", "")
     role, _ = _resolve_role(pin, db)
     clubs = db.query(Club).order_by(Club.name).all()
+
+    # Pre-compute registered athlete counts per club
+    reg_counts = dict(
+        db.query(Athlete.club_id, func.count(distinct(Athlete.id)))
+        .join(Registration, Registration.athlete_id == Athlete.id)
+        .group_by(Athlete.club_id)
+        .all()
+    )
+
+    meet_fees = _meet_fees(db)
     result = []
     for c in clubs:
         item = {"id": c.id, "name": c.name, "code": c.code,
                 "admin_email": c.admin_email or "",
-                "athlete_count": len(c.athletes)}
+                "athlete_count": len(c.athletes),
+                "registered_athlete_count": reg_counts.get(c.id, 0),
+                "invite_send_count": c.invite_send_count or 0,
+                "stripe_send_count": c.stripe_send_count or 0}
+        # Compute total fees
+        items = _club_line_items(db, c, meet_fees)
+        item["total_fees_cents"] = sum(it["unit_cents"] * it["qty"] for it in items)
         if role == "admin":
             item["pin"] = c.pin
         result.append(item)
@@ -383,6 +402,9 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
 
     if resp.status_code not in (200, 201):
         raise HTTPException(502, f"Resend error: {resp.text}")
+
+    club.invite_send_count = (club.invite_send_count or 0) + 1
+    db.commit()
 
     return {"message": f"Email sent to {club.admin_email}"}
 
@@ -846,6 +868,7 @@ def flush_meet(db: Session = Depends(get_db)):
         cfg = db.query(AppConfig).get(key)
         if cfg:
             db.delete(cfg)
+    db.query(Club).update({Club.invite_send_count: 0, Club.stripe_send_count: 0})
     db.commit()
     return {"deleted": reg_count}
 
@@ -1001,6 +1024,35 @@ def club_invoice_pdf(club_id: int, db: Session = Depends(get_db)):
                     headers={"Content-Disposition": f'attachment; filename="invoice_{name}.pdf"'})
 
 
+@router.post("/invoices/pdf-zip", dependencies=[Depends(require_organizer_or_admin)])
+def invoices_pdf_zip(data: dict, db: Session = Depends(get_db)):
+    """Download a ZIP of PDF invoices for selected clubs."""
+    import zipfile
+    from io import BytesIO
+    from ..invoices import generate_invoice_pdf
+
+    club_ids = data.get("club_ids", [])
+    if not club_ids:
+        raise HTTPException(400, "No clubs selected")
+
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for cid in club_ids:
+            try:
+                pdf = generate_invoice_pdf(db, cid)
+            except ValueError:
+                continue
+            club = db.query(Club).get(cid)
+            name = club.name.replace(" ", "_") if club else f"club_{cid}"
+            zf.writestr(f"invoice_{name}.pdf", pdf)
+
+    if buf.tell() == 0:
+        raise HTTPException(400, "No billable clubs in selection")
+    buf.seek(0)
+    return Response(content=buf.getvalue(), media_type="application/zip",
+                    headers={"Content-Disposition": 'attachment; filename="invoices.zip"'})
+
+
 @router.get("/clubs/{club_id}/invoice-total", dependencies=[Depends(require_organizer_or_admin)])
 def club_invoice_total(club_id: int, db: Session = Depends(get_db)):
     """Return the total billable amount in cents for a club."""
@@ -1087,6 +1139,9 @@ def send_club_invoice(club_id: int, db: Session = Depends(get_db)):
     # Finalize and send
     stripe.Invoice.finalize_invoice(invoice.id, stripe_account=acct)
     stripe.Invoice.send_invoice(invoice.id, stripe_account=acct)
+
+    club.stripe_send_count = (club.stripe_send_count or 0) + 1
+    db.commit()
 
     return {
         "club": club.name,

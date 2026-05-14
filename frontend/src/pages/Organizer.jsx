@@ -5,7 +5,6 @@ import api from '../api'
 export default function Organizer() {
   const [meetInfo, setMeetInfo] = useState(null)
   const [clubs, setClubs] = useState([])
-  const [clubTotals, setClubTotals] = useState({})
   const [checked, setChecked] = useState({})
   const [stripeStatus, setStripeStatus] = useState(null)
   const [msg, setMsg] = useState('')
@@ -21,15 +20,6 @@ export default function Organizer() {
   async function loadClubs() {
     const r = await api.get('/clubs')
     setClubs(r.data)
-    // Load invoice totals for each club
-    const totals = {}
-    await Promise.all(r.data.map(async c => {
-      try {
-        const tr = await api.get(`/clubs/${c.id}/invoice-total`)
-        totals[c.id] = tr.data.total_cents
-      } catch { totals[c.id] = 0 }
-    }))
-    setClubTotals(totals)
   }
 
   async function loadStripeStatus() {
@@ -75,14 +65,7 @@ export default function Organizer() {
     loadMeetInfo(); loadClubs()
   }
 
-  async function sendInvitation(clubId) {
-    try {
-      const r = await api.post(`/clubs/${clubId}/send-pin`, { lang })
-      setMsg(r.data.message || 'Sent!')
-    } catch (e) { setMsg(e.detail || e.message || 'Error') }
-  }
-
-  async function sendSelected() {
+  async function sendSelectedInvites() {
     const ids = Object.entries(checked).filter(([,v]) => v).map(([k]) => k)
     if (!ids.length) return
     setMsg(lang === 'fr' ? 'Envoi en cours...' : 'Sending...')
@@ -94,45 +77,83 @@ export default function Organizer() {
       } catch { errors++ }
     }
     setChecked({})
+    loadClubs()
     setMsg(`${sent} ${t.invitations_sent}${errors ? ` (${errors} ${lang === 'fr' ? 'erreur(s)' : 'error(s)'})` : ''}`)
   }
 
-  async function sendInvoice(club) {
-    const total = clubTotals[club.id] || 0
-    const amount = formatMoney(total, meetInfo?.currency || 'CAD', lang)
+  async function sendSelectedStripeInvoices() {
+    const ids = Object.entries(checked).filter(([,v]) => v).map(([k]) => k)
+    if (!ids.length) return
+    const count = ids.length
     const message = lang === 'fr'
-      ? `Envoyer la facture de ${amount} à ${club.name} ?`
-      : `Send invoice of ${amount} to ${club.name}?`
+      ? `Envoyer les factures Stripe à ${count} club(s) ?`
+      : `Send Stripe invoices to ${count} club(s)?`
     if (!confirm(message)) return
-    setMsg(lang === 'fr' ? 'Création de la facture...' : 'Creating invoice...')
-    try {
-      const r = await api.post(`/clubs/${club.id}/invoice`, {})
-      setMsg(lang === 'fr' ? `Facture envoyée à ${club.name}` : `Invoice sent to ${club.name}`)
-    } catch (e) { setMsg(e.detail || e.message || 'Error') }
+    setMsg(lang === 'fr' ? 'Envoi des factures...' : 'Sending invoices...')
+    let sent = 0, errors = 0
+    for (const id of ids) {
+      try {
+        await api.post(`/clubs/${id}/invoice`, {})
+        sent++
+      } catch { errors++ }
+    }
+    setChecked({})
+    loadClubs()
+    setMsg(`${sent} ${t.stripe_invoices_sent}${errors ? ` (${errors} ${lang === 'fr' ? 'erreur(s)' : 'error(s)'})` : ''}`)
   }
 
-  async function downloadInvoice(club) {
-    setMsg(lang === 'fr' ? 'Génération du PDF...' : 'Generating PDF...')
+  async function downloadSelectedPdfZip() {
+    const ids = Object.entries(checked).filter(([,v]) => v).map(([k]) => Number(k))
+    if (!ids.length) return
+    setMsg(lang === 'fr' ? 'Génération des PDF...' : 'Generating PDFs...')
     try {
-      const res = await fetch(`/api/clubs/${club.id}/invoice-pdf`, {
-        headers: { 'X-Club-Pin': localStorage.getItem('pin') || '' }
+      const res = await fetch('/api/invoices/pdf-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Club-Pin': localStorage.getItem('pin') || '' },
+        body: JSON.stringify({ club_ids: ids })
       })
       if (!res.ok) throw new Error(`${res.status}`)
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url
-      a.download = `invoice_${club.name.replace(/\s+/g, '_')}.pdf`
-      a.click()
+      a.href = url; a.download = 'invoices.zip'; a.click()
       URL.revokeObjectURL(url)
       setMsg('')
     } catch (e) { setMsg(e.message || 'Error') }
   }
 
-
-
   const checkedCount = Object.values(checked).filter(Boolean).length
   const closurePassed = meetInfo?.closure_date && new Date() > new Date(meetInfo.closure_date + 'T23:59:59')
+
+  // Mode: invite (before closure), stripe (after + connected), pdf (after + not connected)
+  const mode = !closurePassed ? 'invite' : stripeStatus?.connected ? 'stripe' : 'pdf'
+
+  function handleMainAction() {
+    if (mode === 'invite') sendSelectedInvites()
+    else if (mode === 'stripe') sendSelectedStripeInvoices()
+    else downloadSelectedPdfZip()
+  }
+
+  const buttonLabel = mode === 'invite' ? t.send_invitation
+    : mode === 'stripe' ? t.send_stripe_invoice_btn
+    : t.download_invoices_btn
+  const buttonColor = mode === 'invite' ? 'bg-green-600 hover:bg-green-700'
+    : mode === 'stripe' ? 'bg-blue-600 hover:bg-blue-700'
+    : 'bg-gray-600 hover:bg-gray-700'
+
+  function statusText(c) {
+    if (mode === 'invite') {
+      const parts = []
+      if (c.registered_athlete_count) parts.push(`${c.registered_athlete_count} ${t.athletes_short}`)
+      if (c.total_fees_cents) parts.push(formatMoney(c.total_fees_cents, meetInfo?.currency || 'CAD', lang))
+      if (c.invite_send_count) parts.push(`${c.invite_send_count}× ${t.invited_short}`)
+      return parts.join(' · ') || '—'
+    }
+    if (mode === 'stripe') {
+      return c.stripe_send_count ? `${c.stripe_send_count}× ${t.sent_short}` : '—'
+    }
+    return c.invite_send_count ? `${c.invite_send_count}× ${t.invited_short}` : '—'
+  }
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
@@ -226,9 +247,9 @@ export default function Organizer() {
         <h2 className="font-semibold mb-2">{t.team_invites}</h2>
 
         <div className="flex gap-2 mb-3">
-          <button onClick={sendSelected} disabled={!checkedCount}
-            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50">
-            {t.send_invitation} {checkedCount > 0 && `(${checkedCount})`}
+          <button onClick={handleMainAction} disabled={!checkedCount}
+            className={`text-white px-4 py-2 rounded disabled:opacity-50 ${buttonColor}`}>
+            {buttonLabel} {checkedCount > 0 && `(${checkedCount})`}
           </button>
         </div>
 
@@ -245,30 +266,16 @@ export default function Organizer() {
               </th>
               <th className="p-2 text-left">{t.club}</th>
               <th className="p-2 text-left">Email</th>
-              <th className="p-2 text-left">{t.invoice}</th>
+              <th className="p-2 text-left">{t.status}</th>
             </tr></thead>
             <tbody>
               {clubs.map(c => (
-                <tr key={c.id} className={`border-b ${closurePassed ? 'opacity-50' : 'hover:bg-gray-50'}`}>
+                <tr key={c.id} className="border-b hover:bg-gray-50">
                   <td className="p-2"><input type="checkbox" checked={!!checked[c.id]}
                     onChange={e => setChecked(prev => ({...prev, [c.id]: e.target.checked}))} /></td>
                   <td className="p-2">{c.name}</td>
                   <td className="p-2 text-gray-600">{c.admin_email || <span className="text-red-400">{lang === 'fr' ? 'aucun' : 'none'}</span>}</td>
-                  <td className="p-2">
-                    {(clubTotals[c.id] || 0) > 0 && stripeStatus?.connected && (
-                      <button onClick={() => sendInvoice(c)}
-                        disabled={!closurePassed}
-                        className={`px-2 py-1 rounded text-xs text-white ${closurePassed ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'}`}>
-                        {t.send_invoice_btn} ({formatMoney(clubTotals[c.id], meetInfo?.currency || 'CAD', lang)})
-                      </button>
-                    )}
-                    {(clubTotals[c.id] || 0) > 0 && !stripeStatus?.connected && (
-                      <button onClick={() => downloadInvoice(c)}
-                        className="bg-gray-600 text-white px-2 py-1 rounded text-xs hover:bg-gray-700">
-                        {t.download_invoice_btn} ({formatMoney(clubTotals[c.id], meetInfo?.currency || 'CAD', lang)})
-                      </button>
-                    )}
-                  </td>
+                  <td className="p-2 text-gray-600 text-xs">{statusText(c)}</td>
                 </tr>
               ))}
             </tbody>

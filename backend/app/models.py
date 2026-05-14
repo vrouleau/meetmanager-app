@@ -27,6 +27,8 @@ class Club(Base):
     nation = Column(String(3))
     pin = Column(String(6))
     admin_email = Column(String(200))
+    invite_send_count = Column(Integer, default=0, nullable=False, server_default="0")
+    stripe_send_count = Column(Integer, default=0, nullable=False, server_default="0")
     athletes = relationship("Athlete", back_populates="club")
 
 

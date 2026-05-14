@@ -14,7 +14,8 @@ from collections import defaultdict
 import time as _time
 
 from ..database import get_db
-from ..models import Club, Athlete, Event, Registration, BestTime, AppConfig, Gender, SecretLink
+from pydantic import BaseModel, Field, field_validator
+from ..models import Club, Athlete, Event, AgeGroup, Registration, BestTime, AppConfig, Gender, SecretLink
 from ..seed import seed_from_lxf
 from ..best_times import load_best_times
 from ..export import generate_lxf
@@ -27,6 +28,115 @@ MEET_STORAGE = Path(os.environ.get("MEET_STORAGE", "/app/data/meet.lxf"))
 MEET_TEMPLATE = Path(os.environ.get("MEET_TEMPLATE", "/app/templates/meet.smb"))
 _DEFAULT_ADMIN_PIN = os.environ.get("ADMIN_PIN", "000000")
 _BEST_TIME_MAX_AGE_MONTHS = int(os.environ.get("BEST_TIME_MAX_AGE_MONTHS", "18"))
+
+
+# ---------------------------------------------------------------------------
+# Pydantic request models
+# ---------------------------------------------------------------------------
+
+class AthleteCreate(BaseModel):
+    first_name: str = Field(..., min_length=1)
+    last_name: str = Field(..., min_length=1)
+    gender: str = "M"
+    birthdate: str | None = None
+    license: str = ""
+    club_id: int
+
+    @field_validator("gender")
+    @classmethod
+    def validate_gender(cls, v: str) -> str:
+        if v not in ("M", "F"):
+            raise ValueError("gender must be M or F")
+        return v
+
+    @field_validator("birthdate")
+    @classmethod
+    def validate_birthdate(cls, v: str | None) -> str | None:
+        if v:
+            from datetime import date as d
+            d.fromisoformat(v)  # raises ValueError if invalid
+        return v
+
+
+class AthleteUpdate(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    gender: str | None = None
+    birthdate: str | None = None
+    license: str | None = None
+
+    @field_validator("gender")
+    @classmethod
+    def validate_gender(cls, v: str | None) -> str | None:
+        if v is not None and v not in ("M", "F"):
+            raise ValueError("gender must be M or F")
+        return v
+
+    @field_validator("birthdate")
+    @classmethod
+    def validate_birthdate(cls, v: str | None) -> str | None:
+        if v:
+            from datetime import date as d
+            d.fromisoformat(v)
+        return v
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def validate_not_empty(cls, v: str | None) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError("must not be empty")
+        return v
+
+
+class ClubCreate(BaseModel):
+    name: str = Field(..., min_length=1)
+    code: str = ""
+    nation: str = "CAN"
+    pin: str | None = None
+
+
+class ClubUpdate(BaseModel):
+    admin_email: str | None = None
+
+
+class RegistrationCreate(BaseModel):
+    athlete_id: int
+    event_id: int
+    age_code: str = "Open"
+    entry_time_ms: int | None = None
+
+    @field_validator("age_code")
+    @classmethod
+    def validate_age_code(cls, v: str) -> str:
+        if v not in ("10-", "11-12", "13-14", "15-18", "Open", "Masters"):
+            raise ValueError("invalid age_code")
+        return v
+
+    @field_validator("entry_time_ms")
+    @classmethod
+    def validate_entry_time(cls, v: int | None) -> int | None:
+        if v is not None and v < 0:
+            raise ValueError("entry_time_ms must be non-negative")
+        return v
+
+
+class ClosureDateUpdate(BaseModel):
+    closure_date: str = ""
+
+    @field_validator("closure_date")
+    @classmethod
+    def validate_date(cls, v: str) -> str:
+        if v:
+            from datetime import date as d
+            d.fromisoformat(v)
+        return v
+
+
+class PinChange(BaseModel):
+    pin: str = Field(..., min_length=4, max_length=20)
+
+
+# ---------------------------------------------------------------------------
 
 
 def _get_admin_pin(db: Session) -> str:
@@ -206,8 +316,8 @@ def meet_info(db: Session = Depends(get_db)):
 
 
 @router.put("/closure-date", dependencies=[Depends(require_organizer_or_admin)])
-def set_closure_date(data: dict, db: Session = Depends(get_db)):
-    val = data.get("closure_date") or ""
+def set_closure_date(data: ClosureDateUpdate, db: Session = Depends(get_db)):
+    val = data.closure_date
     cfg = db.query(AppConfig).get("closure_date")
     if cfg:
         cfg.value = val
@@ -252,9 +362,9 @@ def list_clubs(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/clubs", dependencies=[Depends(require_admin)])
-def create_club(data: dict, db: Session = Depends(get_db)):
-    pin = data.get("pin") or ''.join(secrets.choice(string.digits) for _ in range(6))
-    club = Club(name=data["name"], code=data.get("code", ""), nation=data.get("nation", "CAN"), pin=pin)
+def create_club(data: ClubCreate, db: Session = Depends(get_db)):
+    pin = data.pin or ''.join(secrets.choice(string.digits) for _ in range(6))
+    club = Club(name=data.name, code=data.code, nation=data.nation, pin=pin)
     db.add(club)
     db.commit()
     return {"id": club.id, "pin": club.pin}
@@ -287,12 +397,12 @@ def reset_club_pin(club_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/clubs/{club_id}", dependencies=[Depends(require_admin)])
-def update_club(club_id: int, data: dict, db: Session = Depends(get_db)):
+def update_club(club_id: int, data: ClubUpdate, db: Session = Depends(get_db)):
     club = db.query(Club).get(club_id)
     if not club:
         raise HTTPException(404)
-    if "admin_email" in data:
-        club.admin_email = data["admin_email"]
+    if data.admin_email is not None:
+        club.admin_email = data.admin_email
     db.commit()
     return {"ok": True}
 
@@ -452,15 +562,17 @@ def list_athletes(club_id: int = None, db: Session = Depends(get_db)):
 
 
 @router.post("/athletes")
-def create_athlete(data: dict, db: Session = Depends(get_db)):
+def create_athlete(data: AthleteCreate, request: Request, db: Session = Depends(get_db)):
+    pin = request.headers.get("X-Club-Pin", "")
+    _check_closure(db, pin)
     from datetime import date as d
     ath = Athlete(
-        first_name=data["first_name"],
-        last_name=data["last_name"],
-        gender=Gender(data.get("gender", "M")),
-        birthdate=d.fromisoformat(data["birthdate"]) if data.get("birthdate") else None,
-        license=data.get("license", ""),
-        club_id=data["club_id"],
+        first_name=data.first_name,
+        last_name=data.last_name,
+        gender=Gender(data.gender),
+        birthdate=d.fromisoformat(data.birthdate) if data.birthdate else None,
+        license=data.license,
+        club_id=data.club_id,
     )
     db.add(ath)
     db.commit()
@@ -468,7 +580,9 @@ def create_athlete(data: dict, db: Session = Depends(get_db)):
 
 
 @router.delete("/athletes/{athlete_id}")
-def delete_athlete(athlete_id: int, db: Session = Depends(get_db)):
+def delete_athlete(athlete_id: int, request: Request, db: Session = Depends(get_db)):
+    pin = request.headers.get("X-Club-Pin", "")
+    _check_closure(db, pin)
     athlete = db.query(Athlete).get(athlete_id)
     if not athlete:
         raise HTTPException(404)
@@ -674,17 +788,19 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/athletes/{athlete_id}")
-def update_athlete(athlete_id: int, data: dict, db: Session = Depends(get_db)):
+def update_athlete(athlete_id: int, data: AthleteUpdate, request: Request, db: Session = Depends(get_db)):
+    pin = request.headers.get("X-Club-Pin", "")
+    _check_closure(db, pin)
     athlete = db.query(Athlete).get(athlete_id)
     if not athlete:
         raise HTTPException(404)
-    if "first_name" in data: athlete.first_name = data["first_name"]
-    if "last_name" in data: athlete.last_name = data["last_name"]
-    if "gender" in data: athlete.gender = Gender(data["gender"])
-    if "birthdate" in data:
+    if data.first_name is not None: athlete.first_name = data.first_name
+    if data.last_name is not None: athlete.last_name = data.last_name
+    if data.gender is not None: athlete.gender = Gender(data.gender)
+    if data.birthdate is not None:
         from datetime import date as d
-        athlete.birthdate = d.fromisoformat(data["birthdate"]) if data["birthdate"] else None
-    if "license" in data: athlete.license = data["license"]
+        athlete.birthdate = d.fromisoformat(data.birthdate) if data.birthdate else None
+    if data.license is not None: athlete.license = data.license
     db.commit()
     return {"ok": True}
 
@@ -725,20 +841,46 @@ def _caller_club_id(db: Session, pin: str) -> int | None:
 
 
 @router.post("/registrations")
-def create_registration(data: dict, request: Request, db: Session = Depends(get_db)):
+def create_registration(data: RegistrationCreate, request: Request, db: Session = Depends(get_db)):
     pin = request.headers.get("X-Club-Pin", "")
     _check_closure(db, pin)
-    athlete_id = data["athlete_id"]
-    event_id = data["event_id"]
-    age_code = data.get("age_code", "OPEN")
-    entry_time_ms = data.get("entry_time_ms")
+    athlete_id = data.athlete_id
+    event_id = data.event_id
+    age_code = data.age_code
+    entry_time_ms = data.entry_time_ms
 
     # Ownership check: non-admin can only register own club's athletes
     caller_club = _caller_club_id(db, pin)
-    if caller_club is not None:
-        athlete = db.query(Athlete).get(athlete_id)
-        if not athlete or athlete.club_id != caller_club:
-            raise HTTPException(403, "Cannot register athletes from another club")
+    athlete = db.query(Athlete).get(athlete_id)
+    if not athlete:
+        raise HTTPException(404, "Athlete not found")
+    if caller_club is not None and athlete.club_id != caller_club:
+        raise HTTPException(403, "Cannot register athletes from another club")
+
+    event = db.query(Event).get(event_id)
+    if not event:
+        raise HTTPException(404, "Event not found")
+
+    # Validate age_code against event's actual age groups
+    if age_code == "Masters":
+        if not event.masters:
+            raise HTTPException(422, "Event does not accept Masters category")
+    else:
+        valid_codes = [_age_group_code(ag.age_min, ag.age_max)
+                       for ag in db.query(AgeGroup).filter(AgeGroup.event_id == event_id).all()]
+        if age_code not in valid_codes:
+            raise HTTPException(422, f"age_code '{age_code}' not valid for this event")
+
+    # Relay lock: only one athlete per club per relay event
+    if event.relay_count and event.relay_count > 1:
+        club_athletes = [a.id for a in db.query(Athlete).filter(Athlete.club_id == athlete.club_id).all()]
+        existing_relay = db.query(Registration).filter(
+            Registration.event_id == event_id,
+            Registration.athlete_id.in_(club_athletes),
+            Registration.athlete_id != athlete_id,
+        ).first()
+        if existing_relay:
+            raise HTTPException(409, "Relay already has a registration from this club")
 
     existing = db.query(Registration).filter(
         Registration.athlete_id == athlete_id,
@@ -940,16 +1082,13 @@ def set_organizer(data: dict, db: Session = Depends(get_db)):
 
 
 @router.post("/admin/change-pin", dependencies=[Depends(require_admin)])
-def change_admin_pin(data: dict, db: Session = Depends(get_db)):
+def change_admin_pin(data: PinChange, db: Session = Depends(get_db)):
     """Change the admin PIN."""
-    new_pin = data.get("pin", "")
-    if len(new_pin) < 4:
-        raise HTTPException(400, "PIN must be at least 4 characters")
     cfg = db.query(AppConfig).get("admin_pin")
     if cfg:
-        cfg.value = new_pin
+        cfg.value = data.pin
     else:
-        db.add(AppConfig(key="admin_pin", value=new_pin))
+        db.add(AppConfig(key="admin_pin", value=data.pin))
     db.commit()
     return {"ok": True}
 

@@ -630,3 +630,215 @@ class TestDataManagement:
                 f"style uid={s['uid']} name {s['name']!r} not resolved after meet flush; "
                 "style_names_json cache is missing or not being read"
             )
+
+
+# ---------------------------------------------------------------------------
+# Server-side validation
+# ---------------------------------------------------------------------------
+
+class TestValidation:
+    """Tests for Pydantic models, relay lock, age_code, entry_time, closure."""
+
+    @pytest.fixture(autouse=True, scope="class")
+    def _ensure_meet(self, admin_headers):
+        """Re-upload meet template so events exist for validation tests."""
+        from pathlib import Path
+        meet_path = Path(__file__).resolve().parent / "fixtures" / "meet_template.lxf"
+        with open(meet_path, "rb") as f:
+            r = requests.post(f"{BASE_URL}/api/upload/meet",
+                              files={"file": ("meet.lxf", f, "application/octet-stream")},
+                              headers=admin_headers, timeout=60)
+        r.raise_for_status()
+
+    # --- Pydantic input validation ---
+
+    def test_create_athlete_missing_name(self, admin_headers):
+        r = requests.post(f"{BASE_URL}/api/athletes",
+                          json={"last_name": "X", "club_id": 1, "gender": "M"},
+                          headers=admin_headers, timeout=5)
+        assert r.status_code == 422
+
+    def test_create_athlete_empty_name(self, admin_headers):
+        r = requests.post(f"{BASE_URL}/api/athletes",
+                          json={"first_name": "", "last_name": "X", "club_id": 1},
+                          headers=admin_headers, timeout=5)
+        assert r.status_code == 422
+
+    def test_create_athlete_invalid_gender(self, admin_headers):
+        r = requests.post(f"{BASE_URL}/api/athletes",
+                          json={"first_name": "A", "last_name": "B", "club_id": 1, "gender": "Z"},
+                          headers=admin_headers, timeout=5)
+        assert r.status_code == 422
+
+    def test_create_athlete_invalid_birthdate(self, admin_headers):
+        r = requests.post(f"{BASE_URL}/api/athletes",
+                          json={"first_name": "A", "last_name": "B", "club_id": 1, "birthdate": "not-a-date"},
+                          headers=admin_headers, timeout=5)
+        assert r.status_code == 422
+
+    def test_create_club_empty_name(self, admin_headers):
+        r = requests.post(f"{BASE_URL}/api/clubs",
+                          json={"name": ""},
+                          headers=admin_headers, timeout=5)
+        assert r.status_code == 422
+
+    def test_create_club_missing_name(self, admin_headers):
+        r = requests.post(f"{BASE_URL}/api/clubs",
+                          json={},
+                          headers=admin_headers, timeout=5)
+        assert r.status_code == 422
+
+    def test_closure_date_invalid_format(self, admin_headers):
+        r = requests.put(f"{BASE_URL}/api/closure-date",
+                         json={"closure_date": "not-a-date"},
+                         headers=admin_headers, timeout=5)
+        assert r.status_code == 422
+
+    def test_change_pin_too_short(self, admin_headers):
+        r = requests.post(f"{BASE_URL}/api/admin/change-pin",
+                          json={"pin": "12"},
+                          headers=admin_headers, timeout=5)
+        assert r.status_code == 422
+
+    # --- entry_time_ms validation ---
+
+    def test_registration_negative_entry_time(self, admin_headers):
+        """entry_time_ms must be non-negative."""
+        r = requests.post(f"{BASE_URL}/api/registrations",
+                          json={"athlete_id": 1, "event_id": 1,
+                                "age_code": "Open", "entry_time_ms": -100},
+                          headers=admin_headers, timeout=5)
+        assert r.status_code == 422
+
+    # --- age_code validation ---
+
+    def test_registration_invalid_age_code(self, admin_headers):
+        """age_code must be one of the known values."""
+        r = requests.post(f"{BASE_URL}/api/registrations",
+                          json={"athlete_id": 1, "event_id": 1,
+                                "age_code": "BOGUS"},
+                          headers=admin_headers, timeout=5)
+        assert r.status_code == 422
+
+    def test_registration_wrong_age_code_for_event(self, athletes, admin_headers):
+        """Register with a valid age_code that doesn't match the event's age groups."""
+        adult = _by_birthyear(athletes, 2002, gender="M")[0]
+        reg = get_registration(adult["id"], admin_headers)
+        style = reg["individual_events"][0]
+        # Find a category that IS valid for this event
+        valid_codes = {c["age_code"] for c in style["categories"]}
+        # Pick a code NOT in the event's valid set
+        all_codes = {"10-", "11-12", "13-14", "15-18", "Open"}
+        invalid_for_event = all_codes - valid_codes
+        if not invalid_for_event:
+            pytest.skip("All codes valid for this event")
+        bad_code = invalid_for_event.pop()
+        cat = style["categories"][0]
+        r = requests.post(f"{BASE_URL}/api/registrations",
+                          json={"athlete_id": athletes[0]["id"],
+                                "event_id": cat["event_id"],
+                                "age_code": bad_code},
+                          headers=admin_headers, timeout=5)
+        assert r.status_code == 422
+
+    # --- relay lock ---
+
+    def test_relay_lock(self, athletes, clubs, admin_headers):
+        """Second athlete from same club cannot register for same relay event."""
+        # Find a relay event
+        r = requests.get(f"{BASE_URL}/api/events", headers=admin_headers, timeout=5)
+        r.raise_for_status()
+        events = r.json()
+        relay_events = [e for e in events if e.get("relay_count", 0) > 1]
+        if not relay_events:
+            pytest.skip("No relay events in test meet")
+        relay_ev = relay_events[0]
+
+        # Find two athletes from the same club
+        club_id = clubs[0]["id"]
+        club_athletes = [a for a in athletes if a["club_id"] == club_id]
+        assert len(club_athletes) >= 2
+
+        # Get valid age_code for this relay event
+        reg = get_registration(club_athletes[0]["id"], admin_headers)
+        relay_styles = reg["relay_events"]
+        relay_style = next((s for s in relay_styles
+                            for c in s["categories"]
+                            if c["event_id"] == relay_ev["id"]), None)
+        if not relay_style:
+            pytest.skip("Relay event not visible to athlete")
+        cat = next(c for c in relay_style["categories"] if c["event_id"] == relay_ev["id"])
+
+        # Register first athlete
+        r1 = requests.post(f"{BASE_URL}/api/registrations",
+                           json={"athlete_id": club_athletes[0]["id"],
+                                 "event_id": relay_ev["id"],
+                                 "age_code": cat["age_code"],
+                                 "entry_time_ms": None},
+                           headers=admin_headers, timeout=5)
+        assert r1.status_code == 200
+        reg1_id = r1.json()["id"]
+
+        # Second athlete from same club → 409
+        r2 = requests.post(f"{BASE_URL}/api/registrations",
+                           json={"athlete_id": club_athletes[1]["id"],
+                                 "event_id": relay_ev["id"],
+                                 "age_code": cat["age_code"],
+                                 "entry_time_ms": None},
+                           headers=admin_headers, timeout=5)
+        assert r2.status_code == 409
+
+        # Cleanup
+        requests.delete(f"{BASE_URL}/api/registrations/{reg1_id}",
+                        headers=admin_headers, timeout=5)
+
+    # --- closure date on athlete CRUD ---
+
+    def test_closure_blocks_athlete_create(self, clubs, admin_headers):
+        """Coach cannot create athlete after closure."""
+        # Set closure to yesterday
+        from datetime import date, timedelta
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        r = requests.put(f"{BASE_URL}/api/closure-date",
+                         json={"closure_date": yesterday},
+                         headers=admin_headers, timeout=5)
+        r.raise_for_status()
+
+        coach_headers = {"X-Club-Pin": clubs[0]["pin"]}
+        r = requests.post(f"{BASE_URL}/api/athletes",
+                          json={"first_name": "Blocked", "last_name": "Coach",
+                                "club_id": clubs[0]["id"], "gender": "M"},
+                          headers=coach_headers, timeout=5)
+        assert r.status_code == 403
+
+        # Admin can still create
+        r = requests.post(f"{BASE_URL}/api/athletes",
+                          json={"first_name": "Admin", "last_name": "OK",
+                                "club_id": clubs[0]["id"], "gender": "M"},
+                          headers=admin_headers, timeout=5)
+        assert r.status_code == 200
+        # Cleanup
+        requests.delete(f"{BASE_URL}/api/athletes/{r.json()['id']}",
+                        headers=admin_headers, timeout=5)
+        requests.put(f"{BASE_URL}/api/closure-date",
+                     json={"closure_date": ""},
+                     headers=admin_headers, timeout=5)
+
+    def test_closure_blocks_athlete_delete(self, athletes, clubs, admin_headers):
+        """Coach cannot delete athlete after closure."""
+        from datetime import date, timedelta
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        requests.put(f"{BASE_URL}/api/closure-date",
+                     json={"closure_date": yesterday},
+                     headers=admin_headers, timeout=5)
+
+        coach_headers = {"X-Club-Pin": clubs[0]["pin"]}
+        club_athletes = [a for a in athletes if a["club_id"] == clubs[0]["id"]]
+        r = requests.delete(f"{BASE_URL}/api/athletes/{club_athletes[0]['id']}",
+                            headers=coach_headers, timeout=5)
+        assert r.status_code == 403
+
+        # Clear closure
+        requests.put(f"{BASE_URL}/api/closure-date",
+                     json={"closure_date": ""},
+                     headers=admin_headers, timeout=5)

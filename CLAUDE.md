@@ -136,7 +136,7 @@ BEST_TIME_MAX_AGE_MONTHS=  # months before a best time is considered stale (defa
 | DELETE | `/registrations/:id` | Remove registration |
 | DELETE | `/registrations` | **Flush meet**: delete registrations + events + meet config + organizer designation |
 | POST | `/upload/preview` | Preview Lenex .lxf import (count new clubs/athletes) |
-| POST | `/upload/entries` | Import clubs + athletes + best times from Lenex |
+| POST | `/upload/entries` | Import clubs + athletes + best times from Lenex; also loads events/age groups/fees if none exist |
 | POST | `/upload/results` | Import best times from results Lenex |
 | GET | `/export` | Download registrations .lxf + simulate scripts as .zip |
 | GET | `/export/entries` | Export all clubs/athletes/best times as Lenex .lxf (seed for next meet) |

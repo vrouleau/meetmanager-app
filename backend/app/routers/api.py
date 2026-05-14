@@ -826,13 +826,24 @@ async def upload_preview(file: UploadFile = File(...), db: Session = Depends(get
 
 @router.post("/upload/entries", dependencies=[Depends(require_admin)])
 async def upload_entries(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    """Upload .lxf — seeds clubs + athletes and populates best times."""
+    """Upload .lxf — seeds clubs + athletes and populates best times.
+    Also loads events/age groups/fees if none exist yet."""
     content = await file.read()
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(413, "File too large (max 10MB)")
     seed_result = seed_from_lxf(db, content)
     times_result = load_best_times(db, content, source=file.filename or "upload")
-    return {**seed_result, **times_result}
+    events_loaded = 0
+    if not db.query(Event).first():
+        from ..meet_parser import parse_meet_lxf
+        from ..events import _load_from_parsed
+        try:
+            meet = parse_meet_lxf(content)
+            if meet.all_events:
+                events_loaded = _load_from_parsed(db, meet)
+        except Exception:
+            pass  # not a valid meet structure — skip silently
+    return {**seed_result, **times_result, "events_loaded": events_loaded}
 
 
 @router.post("/upload/results", dependencies=[Depends(require_admin)])

@@ -30,14 +30,7 @@ def startup():
         raise RuntimeError("SECRET_KEY must be changed from the default value")
 
     Base.metadata.create_all(bind=engine)
-    # Add stripe_account_id column if missing (existing DBs)
-    from sqlalchemy import inspect, text
-    insp = inspect(engine)
-    if "clubs" in insp.get_table_names():
-        cols = [c["name"] for c in insp.get_columns("clubs")]
-        if "stripe_account_id" not in cols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE clubs ADD COLUMN stripe_account_id VARCHAR(100)"))
+
     # Load events from stored meet .lxf if available and events table is empty
     meet_path = Path(os.environ.get("MEET_STORAGE", "/app/data/meet.lxf"))
     if meet_path.exists():

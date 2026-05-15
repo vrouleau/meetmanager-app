@@ -50,6 +50,7 @@ function TimeInput({ defaultValue, onSave }) {
       placeholder="m:ss.cc"
       value={value}
       onChange={e => { setValue(e.target.value); setError(false) }}
+      onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
       onBlur={e => {
         const v = e.target.value
         if (!v || v.trim().toLowerCase() === 'nt') { onSave(''); return }
@@ -184,11 +185,13 @@ export default function Register() {
         <div>
           <label className="text-xs text-gray-500">{t.first_name}</label>
           <input className="border p-1 rounded w-full" defaultValue={athlete.first_name}
+                 onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
                  onBlur={e => saveAthlete('first_name', e.target.value)} />
         </div>
         <div>
           <label className="text-xs text-gray-500">{t.last_name}</label>
           <input className="border p-1 rounded w-full" defaultValue={athlete.last_name}
+                 onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
                  onBlur={e => saveAthlete('last_name', e.target.value)} />
         </div>
         <div>
@@ -202,11 +205,13 @@ export default function Register() {
         <div>
           <label className="text-xs text-gray-500">{t.dob}</label>
           <input type="date" className="border p-1 rounded w-full" defaultValue={athlete.birthdate}
+                 onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
                  onBlur={e => saveAthlete('birthdate', e.target.value)} />
         </div>
         <div>
           <label className="text-xs text-gray-500">{t.nran}</label>
           <input className="border p-1 rounded w-full" defaultValue={athlete.license}
+                 onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
                  onBlur={e => saveAthlete('license', e.target.value)} />
         </div>
         <div className="col-span-2">

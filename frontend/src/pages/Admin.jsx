@@ -235,6 +235,7 @@ export default function Admin() {
                     <td className="p-2">
                       <input type="email" className="border p-1 rounded w-full text-sm"
                         defaultValue={c.admin_email}
+                        onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
                         onBlur={e => { if (e.target.value !== c.admin_email) updateEmail(c, e.target.value) }}
                         placeholder="email@example.com" />
                     </td>

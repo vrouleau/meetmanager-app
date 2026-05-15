@@ -195,6 +195,7 @@ export default function Organizer() {
         <label className="font-semibold whitespace-nowrap">{t.closure_date_label}:</label>
         <input type="date" className="border p-1 rounded"
           defaultValue={meetInfo?.closure_date || ''}
+          onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
           onBlur={async e => {
             await api.put('/closure-date', { closure_date: e.target.value })
             loadMeetInfo()

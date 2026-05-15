@@ -3,7 +3,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: meetmgr
-      POSTGRES_PASSWORD: meetmgr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-meetmgr}
       POSTGRES_DB: meetmgr
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -12,35 +12,38 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
 
   backend:
-    build: ./backend
+    image: ${DOCKERHUB_USERNAME:-vrouleau}/meetmanager-backend:${IMAGE_TAG:-latest}
     environment:
-      DATABASE_URL: postgres://meetmgr:meetmgr@db/meetmgr
-      ADMIN_PIN: "${ADMIN_PIN:-314159}"
-      RESEND_API_KEY: "${RESEND_API_KEY:-}"
-      RESEND_FROM_EMAIL: "${RESEND_FROM_EMAIL:-noreply@example.com}"
-      APP_BASE_URL: "${APP_BASE_URL:-http://localhost:8001}"
-      SECRET_KEY: "${SECRET_KEY:-change-me-to-a-random-string}"
-      STRIPE_API_KEY: "${STRIPE_API_KEY:-}"
-      MEET_TEMPLATE: "${MEET_TEMPLATE:-/app/templates/meet.smb}"
-      TURNSTILE_SECRET_KEY: "${TURNSTILE_SECRET_KEY:-}"
+      DATABASE_URL: postgres://meetmgr:${POSTGRES_PASSWORD:-meetmgr}@db/meetmgr
+      ADMIN_PIN: ${ADMIN_PIN:-314159}
+      SECRET_KEY: ${SECRET_KEY:-change-me-to-a-random-string}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8001}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-noreply@example.com}
+      STRIPE_API_KEY: ${STRIPE_API_KEY:-}
+      MEET_TEMPLATE: /app/templates/meet.smb
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+      BEST_TIME_MAX_AGE_MONTHS: ${BEST_TIME_MAX_AGE_MONTHS:-18}
     depends_on:
       db:
         condition: service_healthy
     volumes:
-      - ./templates:/app/templates:ro
+      - templates:/app/templates:ro
       - appdata:/app/data
+    restart: unless-stopped
 
   frontend:
-    build: ./frontend
-    environment:
-      TURNSTILE_SITE_KEY: "${TURNSTILE_SITE_KEY:-}"
+    image: ${DOCKERHUB_USERNAME:-vrouleau}/meetmanager-frontend:${IMAGE_TAG:-latest}
     ports:
-      - "8001:80"
+      - "${FRONTEND_PORT:-8001}:80"
     depends_on:
       - backend
+    restart: unless-stopped
 
 volumes:
   pgdata:
   appdata:
+  templates:

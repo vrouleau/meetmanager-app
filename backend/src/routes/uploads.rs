@@ -1,6 +1,5 @@
 use axum::{
-    body::Bytes,
-    extract::State,
+    extract::{Multipart, State},
     http::{HeaderMap, StatusCode},
     routing::post,
     Json, Router,
@@ -21,18 +20,26 @@ pub fn routes() -> Router<AppState> {
         .route("/api/upload/results", post(upload_results))
 }
 
+async fn extract_file(mut multipart: Multipart) -> Result<(String, Vec<u8>), (StatusCode, String)> {
+    while let Some(field) = multipart.next_field().await.map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))? {
+        let filename = field.file_name().unwrap_or("upload.lxf").to_string();
+        let data = field.bytes().await.map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+        if !data.is_empty() {
+            return Ok((filename, data.to_vec()));
+        }
+    }
+    Err((StatusCode::BAD_REQUEST, "No file uploaded".to_string()))
+}
+
 async fn upload_meet(
     State(state): State<AppState>,
     headers: HeaderMap,
-    body: Bytes,
+    multipart: Multipart,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let pin = headers.get("x-club-pin").and_then(|v| v.to_str().ok()).unwrap_or("");
     require_organizer_or_admin(&state, pin).await.map_err(|(s, m)| (s, m.to_string()))?;
 
-    let content = body.to_vec();
-    if content.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "No file uploaded".to_string()));
-    }
+    let (filename, content) = extract_file(multipart).await?;
     if content.len() > 10 * 1024 * 1024 {
         return Err((StatusCode::PAYLOAD_TOO_LARGE, "File too large (max 10MB)".to_string()));
     }
@@ -57,8 +64,6 @@ async fn upload_meet(
 
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
     let fees_json = serde_json::to_string(&meet.meet_fees).unwrap_or_default();
-    let filename = headers.get("x-filename")
-        .and_then(|v| v.to_str().ok()).unwrap_or("meet.lxf").to_string();
 
     for (key, val) in [
         ("meet_filename", filename.as_str()),
@@ -93,21 +98,15 @@ async fn upload_meet(
 async fn upload_entries(
     State(state): State<AppState>,
     headers: HeaderMap,
-    body: Bytes,
+    multipart: Multipart,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let pin = headers.get("x-club-pin").and_then(|v| v.to_str().ok()).unwrap_or("");
     require_admin(&state, pin).await.map_err(|(s, m)| (s, m.to_string()))?;
 
-    let content = body.to_vec();
-    if content.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "No file uploaded".to_string()));
-    }
+    let (filename, content) = extract_file(multipart).await?;
     if content.len() > 10 * 1024 * 1024 {
         return Err((StatusCode::PAYLOAD_TOO_LARGE, "File too large".to_string()));
     }
-
-    let filename = headers.get("x-filename")
-        .and_then(|v| v.to_str().ok()).unwrap_or("entries.lxf").to_string();
 
     let seed_result = crate::seed::seed_from_lxf(&state.pool, &content).await
         .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
@@ -137,18 +136,12 @@ async fn upload_entries(
 async fn upload_results(
     State(state): State<AppState>,
     headers: HeaderMap,
-    body: Bytes,
+    multipart: Multipart,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let pin = headers.get("x-club-pin").and_then(|v| v.to_str().ok()).unwrap_or("");
     require_admin(&state, pin).await.map_err(|(s, m)| (s, m.to_string()))?;
 
-    let content = body.to_vec();
-    if content.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "No file uploaded".to_string()));
-    }
-
-    let filename = headers.get("x-filename")
-        .and_then(|v| v.to_str().ok()).unwrap_or("results.lxf").to_string();
+    let (filename, content) = extract_file(multipart).await?;
 
     let seed_result = crate::seed::seed_from_lxf(&state.pool, &content).await
         .map_err(|e| (StatusCode::BAD_REQUEST, e))?;

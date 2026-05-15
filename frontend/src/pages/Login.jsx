@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useLang } from '../i18n'
 import api from '../api'
 
@@ -39,6 +40,11 @@ export default function Login({ onLogin }) {
         <button type="submit" className="bg-blue-600 text-white w-full py-2 rounded hover:bg-blue-700">
           {t.login_btn}
         </button>
+        <div className="mt-4 text-center">
+          <Link to="/self-invite" className="text-xs text-gray-500 hover:underline">
+            {t.self_invite_title}
+          </Link>
+        </div>
       </form>
     </div>
   )

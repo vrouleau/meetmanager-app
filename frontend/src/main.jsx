@@ -10,6 +10,7 @@ import Admin from './pages/Admin'
 import Organizer from './pages/Organizer'
 import DataManagement from './pages/DataManagement'
 import Secret from './pages/Secret'
+import SelfInvite from './pages/SelfInvite'
 
 function AppInner() {
   const [auth, setAuth] = useState(null)
@@ -37,6 +38,7 @@ function AppInner() {
     <BrowserRouter>
       <Routes>
         <Route path="/secret/:token" element={<Secret />} />
+        <Route path="/self-invite" element={<SelfInvite />} />
         <Route path="*" element={<Login onLogin={setAuth} />} />
       </Routes>
     </BrowserRouter>

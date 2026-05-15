@@ -519,6 +519,25 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
     return {"message": f"Email sent to {club.admin_email}"}
 
 
+@router.get("/self-invite/clubs")
+def self_invite_clubs(db: Session = Depends(get_db)):
+    """Public: list clubs that have an admin email, for the self-invite page."""
+    clubs = (db.query(Club)
+             .filter(Club.admin_email != None, Club.admin_email != '')
+             .order_by(Club.name).all())
+    return [{"id": c.id, "name": c.name, "admin_email": c.admin_email} for c in clubs]
+
+
+@router.post("/self-invite")
+def self_invite(data: dict, db: Session = Depends(get_db)):
+    """Public: a club requests its own invitation email."""
+    club_id = data.get("club_id")
+    lang = data.get("lang", "fr")
+    if not club_id:
+        raise HTTPException(400, "club_id required")
+    return send_pin(club_id, {"lang": lang}, db)
+
+
 @router.post("/secret/{token}")
 def reveal_secret(token: str, db: Session = Depends(get_db)):
     """One-time reveal of encrypted PIN."""

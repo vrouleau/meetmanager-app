@@ -121,6 +121,7 @@ const translations = {
     self_invite_no_email: "No email configured for this club.",
     self_invite_no_clubs: "No clubs available.",
     self_invite_back: "Back to login",
+    self_invite_closed: "The registration period is closed.",
   },
   fr: {
     athletes: "Athlètes",
@@ -242,6 +243,7 @@ const translations = {
     self_invite_no_email: "Aucun courriel configuré pour ce club.",
     self_invite_no_clubs: "Aucun club disponible.",
     self_invite_back: "Retour à la connexion",
+    self_invite_closed: "La période d'inscription est terminée.",
   },
 }
 

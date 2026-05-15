@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n'
 import api from '../api'
@@ -6,7 +6,17 @@ import api from '../api'
 export default function Login({ onLogin }) {
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
+  const [closed, setClosed] = useState(false)
   const { t, lang, toggle } = useLang()
+
+  useEffect(() => {
+    fetch('/api/meet-info')
+      .then(r => r.json())
+      .then(data => {
+        if (data.closure_date && new Date(data.closure_date) < new Date()) setClosed(true)
+      })
+      .catch(() => {})
+  }, [])
 
   async function submit(e) {
     e.preventDefault()
@@ -40,11 +50,13 @@ export default function Login({ onLogin }) {
         <button type="submit" className="bg-blue-600 text-white w-full py-2 rounded hover:bg-blue-700">
           {t.login_btn}
         </button>
-        <div className="mt-4 text-center">
-          <Link to="/self-invite" className="text-xs text-gray-500 hover:underline">
-            {t.self_invite_title}
-          </Link>
-        </div>
+        {!closed && (
+          <div className="mt-4 text-center">
+            <Link to="/self-invite" className="text-xs text-gray-500 hover:underline">
+              {t.self_invite_title}
+            </Link>
+          </div>
+        )}
       </form>
     </div>
   )

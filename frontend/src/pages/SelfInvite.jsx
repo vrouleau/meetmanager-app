@@ -6,6 +6,7 @@ export default function SelfInvite() {
   const { t, lang, toggle } = useLang()
   const [clubs, setClubs] = useState([])
   const [meetName, setMeetName] = useState('')
+  const [closed, setClosed] = useState(false)
   const [selectedClubId, setSelectedClubId] = useState('')
   const [email, setEmail] = useState('')
   const [sending, setSending] = useState(false)
@@ -19,7 +20,10 @@ export default function SelfInvite() {
       .catch(() => setError('Failed to load clubs'))
     fetch('/api/meet-info')
       .then(r => r.json())
-      .then(data => setMeetName(data.meet_name || ''))
+      .then(data => {
+        setMeetName(data.meet_name || '')
+        if (data.closure_date && new Date(data.closure_date) < new Date()) setClosed(true)
+      })
       .catch(() => {})
   }, [])
 
@@ -66,11 +70,15 @@ export default function SelfInvite() {
         </div>
         {meetName && <p className="text-sm text-gray-600 mb-4 font-medium">{meetName}</p>}
 
-        {clubs.length === 0 && !error && (
+        {closed && (
+          <p className="text-red-600 text-sm font-medium">{t.self_invite_closed}</p>
+        )}
+
+        {!closed && clubs.length === 0 && !error && (
           <p className="text-gray-500 text-sm">{t.self_invite_no_clubs}</p>
         )}
 
-        {clubs.length > 0 && (
+        {!closed && clubs.length > 0 && (
           <>
             <div className="mb-3">
               <label className="block text-sm font-medium text-gray-700 mb-1">

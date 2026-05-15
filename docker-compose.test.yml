@@ -4,6 +4,8 @@ services:
     image: meetmanager-backend:test
     ports:
       - "8000:8000"
+    volumes:
+      - ./templates:/app/templates:ro
 
   frontend:
     build: ./frontend

@@ -9,7 +9,8 @@ import zipfile
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
-from xml.etree import ElementTree as ET
+from xml.etree import ElementTree as ET  # noqa: F401
+from defusedxml.ElementTree import fromstring as _ET_fromstring
 
 
 @dataclass
@@ -85,7 +86,7 @@ def parse_meet_lxf(source) -> ParsedMeet:
         lef_name = [n for n in z.namelist() if n.endswith(".lef")][0]
         xml_bytes = z.read(lef_name)
 
-    root = ET.fromstring(xml_bytes)
+    root = _ET_fromstring(xml_bytes)
     meet = ParsedMeet()
 
     meet_el = root.find(".//MEET")

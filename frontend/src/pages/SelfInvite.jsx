@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n'
+
+const TURNSTILE_SITE_KEY = window.__TURNSTILE_SITE_KEY__ || ''
 
 export default function SelfInvite() {
   const { t, lang, toggle } = useLang()
@@ -12,6 +14,10 @@ export default function SelfInvite() {
   const [sending, setSending] = useState(false)
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
+  const [organizerEmail, setOrganizerEmail] = useState('')
+  const [captchaToken, setCaptchaToken] = useState('')
+  const turnstileRef = useRef(null)
+  const widgetId = useRef(null)
 
   useEffect(() => {
     fetch('/api/self-invite/clubs')
@@ -27,35 +33,69 @@ export default function SelfInvite() {
       .catch(() => {})
   }, [])
 
-  function handleClubChange(e) {
-    const id = e.target.value
-    setSelectedClubId(id)
-    setMsg('')
-    setError('')
-    const club = clubs.find(c => String(c.id) === id)
-    setEmail(club?.admin_email || '')
-  }
+  // Load Turnstile script
+  useEffect(() => {
+    if (!TURNSTILE_SITE_KEY) return
+    if (document.getElementById('cf-turnstile-script')) return
+    const s = document.createElement('script')
+    s.id = 'cf-turnstile-script'
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+    s.async = true
+    document.head.appendChild(s)
+  }, [])
+
+  // Render widget once script is loaded and container is mounted
+  const renderWidget = useCallback(() => {
+    if (!TURNSTILE_SITE_KEY || !turnstileRef.current) return
+    if (widgetId.current != null) return
+    if (!window.turnstile) {
+      setTimeout(renderWidget, 200)
+      return
+    }
+    widgetId.current = window.turnstile.render(turnstileRef.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      callback: token => setCaptchaToken(token),
+      'expired-callback': () => setCaptchaToken(''),
+    })
+  }, [])
+
+  useEffect(() => {
+    if (TURNSTILE_SITE_KEY) renderWidget()
+  }, [renderWidget, clubs])
 
   async function handleSend() {
-    if (!selectedClubId) return
+    if (!selectedClubId || !email.trim()) return
     setSending(true)
     setMsg('')
     setError('')
+    setOrganizerEmail('')
     try {
       const res = await fetch('/api/self-invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ club_id: Number(selectedClubId), lang }),
+        body: JSON.stringify({ club_id: Number(selectedClubId), email: email.trim(), lang, captcha_token: captchaToken }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error(data.detail || `Error ${res.status}`)
+        const detail = data.detail || ''
+        if (detail.startsWith('email_mismatch|')) {
+          const orgEmail = detail.split('|')[1] || ''
+          setOrganizerEmail(orgEmail)
+          setError(t.self_invite_email_mismatch)
+        } else {
+          throw new Error(detail || `Error ${res.status}`)
+        }
+        return
       }
       setMsg(t.self_invite_sent)
     } catch (e) {
       setError(e.message || 'Error')
     } finally {
       setSending(false)
+      if (TURNSTILE_SITE_KEY && window.turnstile && widgetId.current != null) {
+        window.turnstile.reset(widgetId.current)
+        setCaptchaToken('')
+      }
     }
   }
 
@@ -86,7 +126,7 @@ export default function SelfInvite() {
               </label>
               <select
                 value={selectedClubId}
-                onChange={handleClubChange}
+                onChange={e => { setSelectedClubId(e.target.value); setMsg(''); setError(''); setOrganizerEmail('') }}
                 className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               >
                 <option value="">—</option>
@@ -102,25 +142,37 @@ export default function SelfInvite() {
               </label>
               <input
                 type="email"
-                readOnly
                 value={email}
-                placeholder="—"
-                className="w-full border rounded px-3 py-2 text-sm bg-gray-50 text-gray-600 cursor-default"
+                onChange={e => setEmail(e.target.value)}
+                placeholder={t.self_invite_email_placeholder}
+                className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
             </div>
 
             <button
               onClick={handleSend}
-              disabled={!selectedClubId || !email || sending}
+              disabled={!selectedClubId || !email.trim() || sending || (TURNSTILE_SITE_KEY && !captchaToken)}
               className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
             >
               {sending ? '…' : t.self_invite_send_btn}
             </button>
+
+            {TURNSTILE_SITE_KEY && <div ref={turnstileRef} className="mt-3 flex justify-center" />}
           </>
         )}
 
         {msg && <p className="mt-3 text-green-700 text-sm">{msg}</p>}
-        {error && <p className="mt-3 text-red-600 text-sm">{error}</p>}
+        {error && (
+          <div className="mt-3">
+            <p className="text-red-600 text-sm">{error}</p>
+            {organizerEmail && (
+              <p className="text-sm text-gray-700 mt-1">
+                {t.self_invite_contact_organizer}{' '}
+                <a href={`mailto:${organizerEmail}`} className="text-blue-600 underline">{organizerEmail}</a>
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="mt-4 text-center">
           <Link to="/" className="text-xs text-gray-500 hover:underline">{t.self_invite_back}</Link>

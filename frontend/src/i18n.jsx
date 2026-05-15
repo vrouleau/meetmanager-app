@@ -122,6 +122,9 @@ const translations = {
     self_invite_no_clubs: "No clubs available.",
     self_invite_back: "Back to login",
     self_invite_closed: "The registration period is closed.",
+    self_invite_email_mismatch: "The email entered does not match the one on file for this club.",
+    self_invite_contact_organizer: "Contact the organizer:",
+    self_invite_email_placeholder: "your@email.com",
   },
   fr: {
     athletes: "Athlètes",
@@ -244,6 +247,9 @@ const translations = {
     self_invite_no_clubs: "Aucun club disponible.",
     self_invite_back: "Retour à la connexion",
     self_invite_closed: "La période d'inscription est terminée.",
+    self_invite_email_mismatch: "Le courriel saisi ne correspond pas à celui enregistré pour ce club.",
+    self_invite_contact_organizer: "Contactez l'organisateur :",
+    self_invite_email_placeholder: "votre@courriel.com",
   },
 }
 

@@ -4,7 +4,8 @@ from __future__ import annotations
 import zipfile
 from datetime import date
 from io import BytesIO
-from xml.etree import ElementTree as ET
+from xml.etree import ElementTree as ET  # noqa: F401 — kept for type hints
+from defusedxml.ElementTree import fromstring as _ET_fromstring
 
 from sqlalchemy.orm import Session
 from .models import Club, Athlete, Gender
@@ -16,7 +17,7 @@ def parse_lxf(file_bytes: bytes) -> list[dict]:
         lef_name = [n for n in z.namelist() if n.endswith(".lef")][0]
         xml_bytes = z.read(lef_name)
 
-    root = ET.fromstring(xml_bytes)
+    root = _ET_fromstring(xml_bytes)
     ns = ""  # Lenex 3.0 has no namespace typically
     clubs_data = []
 
@@ -67,8 +68,8 @@ def seed_from_lxf(db: Session, file_bytes: bytes) -> dict:
         else:
             club = db.query(Club).filter(Club.name == cd["name"]).first()
         if not club:
-            import random
-            pin = f"{random.randint(100000, 999999)}"
+            import secrets, string
+            pin = ''.join(secrets.choice(string.digits) for _ in range(6))
             club = Club(name=cd["name"], code=cd["code"], nation=cd["nation"], pin=pin,
                         admin_email=cd.get("email") or None)
             db.add(club)

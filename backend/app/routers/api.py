@@ -347,7 +347,6 @@ def list_clubs(request: Request, db: Session = Depends(get_db)):
     result = []
     for c in clubs:
         item = {"id": c.id, "name": c.name, "code": c.code,
-                "admin_email": c.admin_email or "",
                 "athlete_count": len(c.athletes),
                 "registered_athlete_count": reg_counts.get(c.id, 0),
                 "invite_send_count": c.invite_send_count or 0,
@@ -355,6 +354,8 @@ def list_clubs(request: Request, db: Session = Depends(get_db)):
         # Compute total fees
         items = _club_line_items(db, c, meet_fees)
         item["total_fees_cents"] = sum(it["unit_cents"] * it["qty"] for it in items)
+        if role in ("admin", "organizer"):
+            item["admin_email"] = c.admin_email or ""
         if role == "admin":
             item["pin"] = c.pin
         result.append(item)
@@ -427,7 +428,9 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
         raise HTTPException(500, "RESEND_API_KEY not configured")
 
     # Encrypt PIN
-    fernet_key = os.environ.get("SECRET_KEY", "default-secret-key-change-me!!")
+    fernet_key = os.environ.get("SECRET_KEY")
+    if not fernet_key:
+        raise HTTPException(500, "SECRET_KEY not configured")
     # Derive a valid Fernet key from the secret
     import hashlib, base64
     key = base64.urlsafe_b64encode(hashlib.sha256(fernet_key.encode()).digest())
@@ -525,16 +528,51 @@ def self_invite_clubs(db: Session = Depends(get_db)):
     clubs = (db.query(Club)
              .filter(Club.admin_email != None, Club.admin_email != '')
              .order_by(Club.name).all())
-    return [{"id": c.id, "name": c.name, "admin_email": c.admin_email} for c in clubs]
+    return [{"id": c.id, "name": c.name} for c in clubs]
 
 
 @router.post("/self-invite")
-def self_invite(data: dict, db: Session = Depends(get_db)):
-    """Public: a club requests its own invitation email."""
+def self_invite(data: dict, request: Request, db: Session = Depends(get_db)):
+    """Public: a club requests its own invitation email after validating their email."""
+    import httpx
+    # CAPTCHA validation
+    turnstile_secret = os.environ.get("TURNSTILE_SECRET_KEY", "")
+    captcha_token = data.get("captcha_token", "")
+    if turnstile_secret:
+        if not captcha_token:
+            raise HTTPException(400, "CAPTCHA required")
+        ip = request.client.host if request.client else ""
+        resp = httpx.post("https://challenges.cloudflare.com/turnstile/v0/siteverify", data={
+            "secret": turnstile_secret,
+            "response": captcha_token,
+            "remoteip": ip,
+        }, timeout=5)
+        if not resp.json().get("success"):
+            raise HTTPException(400, "CAPTCHA validation failed")
+
     club_id = data.get("club_id")
+    email = (data.get("email") or "").strip().lower()
     lang = data.get("lang", "fr")
     if not club_id:
         raise HTTPException(400, "club_id required")
+    if not email:
+        raise HTTPException(400, "email required")
+
+    club = db.query(Club).get(club_id)
+    if not club or not club.admin_email:
+        raise HTTPException(404, "Club not found")
+
+    # Validate email matches
+    if email != (club.admin_email or "").strip().lower():
+        # Return organizer contact so the user knows who to reach
+        org_cfg = db.query(AppConfig).get("organizer_club_id")
+        org_email = ""
+        if org_cfg:
+            org_club = db.query(Club).get(int(org_cfg.value))
+            if org_club:
+                org_email = org_club.admin_email or ""
+        raise HTTPException(403, f"email_mismatch|{org_email}")
+
     return send_pin(club_id, {"lang": lang}, db)
 
 
@@ -553,7 +591,9 @@ def reveal_secret(token: str, db: Session = Depends(get_db)):
         raise HTTPException(410, "Ce lien est expiré. / This link has expired.")
 
     # Decrypt PIN
-    fernet_key = os.environ.get("SECRET_KEY", "default-secret-key-change-me!!")
+    fernet_key = os.environ.get("SECRET_KEY")
+    if not fernet_key:
+        raise HTTPException(500, "SECRET_KEY not configured")
     key = base64.urlsafe_b64encode(hashlib.sha256(fernet_key.encode()).digest())
     f = Fernet(key)
     pin = f.decrypt(link.pin_encrypted.encode()).decode()
@@ -567,7 +607,14 @@ def reveal_secret(token: str, db: Session = Depends(get_db)):
 
 
 @router.get("/athletes")
-def list_athletes(club_id: int = None, db: Session = Depends(get_db)):
+def list_athletes(request: Request, club_id: int = None, db: Session = Depends(get_db)):
+    pin = request.headers.get("X-Club-Pin", "")
+    role, caller_club = _resolve_role(pin, db)
+    if role == "none":
+        raise HTTPException(401, "Authentication required")
+    # Coaches can only see their own club
+    if role == "coach":
+        club_id = caller_club
     q = db.query(Athlete).options(joinedload(Athlete.club))
     if club_id:
         q = q.filter(Athlete.club_id == club_id)
@@ -584,6 +631,9 @@ def list_athletes(club_id: int = None, db: Session = Depends(get_db)):
 def create_athlete(data: AthleteCreate, request: Request, db: Session = Depends(get_db)):
     pin = request.headers.get("X-Club-Pin", "")
     _check_closure(db, pin)
+    caller_club = _caller_club_id(db, pin)
+    if caller_club is not None and data.club_id != caller_club:
+        raise HTTPException(403, "Cannot create athletes in another club")
     from datetime import date as d
     ath = Athlete(
         first_name=data.first_name,
@@ -605,6 +655,9 @@ def delete_athlete(athlete_id: int, request: Request, db: Session = Depends(get_
     athlete = db.query(Athlete).get(athlete_id)
     if not athlete:
         raise HTTPException(404)
+    caller_club = _caller_club_id(db, pin)
+    if caller_club is not None and athlete.club_id != caller_club:
+        raise HTTPException(403, "Cannot delete athletes from another club")
     # Delete registrations and best times first
     db.query(Registration).filter(Registration.athlete_id == athlete_id).delete()
     db.query(BestTime).filter(BestTime.athlete_id == athlete_id).delete()
@@ -813,6 +866,9 @@ def update_athlete(athlete_id: int, data: AthleteUpdate, request: Request, db: S
     athlete = db.query(Athlete).get(athlete_id)
     if not athlete:
         raise HTTPException(404)
+    caller_club = _caller_club_id(db, pin)
+    if caller_club is not None and athlete.club_id != caller_club:
+        raise HTTPException(403, "Cannot modify athletes from another club")
     if data.first_name is not None: athlete.first_name = data.first_name
     if data.last_name is not None: athlete.last_name = data.last_name
     if data.gender is not None: athlete.gender = Gender(data.gender)

@@ -24,17 +24,18 @@ services:
       SECRET_KEY: "${SECRET_KEY:-change-me-to-a-random-string}"
       STRIPE_API_KEY: "${STRIPE_API_KEY:-}"
       MEET_TEMPLATE: "${MEET_TEMPLATE:-/app/templates/meet.smb}"
+      TURNSTILE_SECRET_KEY: "${TURNSTILE_SECRET_KEY:-}"
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8000:8000"
     volumes:
       - ./templates:/app/templates:ro
       - appdata:/app/data
 
   frontend:
     build: ./frontend
+    environment:
+      TURNSTILE_SITE_KEY: "${TURNSTILE_SITE_KEY:-}"
     ports:
       - "8001:80"
     depends_on:

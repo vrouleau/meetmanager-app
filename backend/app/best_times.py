@@ -5,7 +5,8 @@ import re
 import zipfile
 from datetime import date as _date
 from io import BytesIO
-from xml.etree import ElementTree as ET
+from xml.etree import ElementTree as ET  # noqa: F401
+from defusedxml.ElementTree import fromstring as _ET_fromstring
 
 import json as _json
 
@@ -104,7 +105,7 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
         lef_name = [n for n in z.namelist() if n.endswith(".lef")][0]
         xml_bytes = z.read(lef_name)
 
-    root = ET.fromstring(xml_bytes)
+    root = _ET_fromstring(xml_bytes)
 
     # Get course and date from MEET element
     meet_el = root.find(".//MEET")

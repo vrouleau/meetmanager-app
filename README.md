@@ -54,6 +54,7 @@ Web-based registration management for lifesaving competitions. Integrates with S
 - No `/docs` or `/redoc` exposed
 - `SECRET_KEY` validated at startup — app refuses to boot with the default placeholder
 - CORS restricted to `APP_BASE_URL`
+- Audit log: every mutating operation logged with timestamp, user identity, and IP to `/app/data/audit.log`
 
 ### Other
 - Closure date: set by organizer; coaches cannot register or modify after the deadline
@@ -66,16 +67,17 @@ Web-based registration management for lifesaving competitions. Integrates with S
 ## Stack
 
 - **Backend**: Python 3.12 / FastAPI + SQLAlchemy 2.0 + PostgreSQL 16
-- **Frontend**: React 18 + Vite + Tailwind CSS
-- **Deploy**: Docker Compose (backend, frontend/nginx, postgres)
+- **Frontend**: React 19 + Vite 6 + Tailwind CSS 4 + React Router 7
+- **Deploy**: Docker Compose (backend, frontend/nginx on Node 22, postgres)
 - **Email**: Resend API (via `httpx`)
 - **Billing**: Stripe Connect + reportlab PDF invoices
 - **Encryption**: Fernet (cryptography) for one-time PIN links
+- **CAPTCHA**: Cloudflare Turnstile (self-invite page)
 
 ## Quick Start
 
 ```bash
-cp .env.example .env
+cp .env_template .env
 # Edit .env — at minimum set SECRET_KEY, ADMIN_PIN, and RESEND_API_KEY
 docker compose up --build -d
 ```
@@ -93,6 +95,8 @@ docker compose up --build -d
 | `RESEND_FROM_EMAIL` | Sender address (must be verified in Resend) |
 | `APP_BASE_URL` | Public frontend URL, used in email links and CORS origin |
 | `STRIPE_API_KEY` | Stripe secret key for invoice generation |
+| `TURNSTILE_SITE_KEY` | Cloudflare Turnstile public site key (self-invite CAPTCHA) |
+| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile secret key (server-side validation) |
 | `MEET_TEMPLATE` | Path to the meet template `.smb` file served to organizers (default `/app/templates/meet.smb`) |
 | `BEST_TIME_MAX_AGE_MONTHS` | Best-time expiry in months (default `18`) |
 
@@ -184,7 +188,7 @@ Notes:
 If the admin PIN was changed via the UI and forgotten, reset it to the `.env` default:
 
 ```bash
-docker compose exec db psql -U postgres meetmanager -c "DELETE FROM app_config WHERE key='admin_pin';"
+docker compose exec db psql -U meetmgr meetmgr -c "DELETE FROM app_config WHERE key='admin_pin';"
 ```
 
 The app will fall back to the `ADMIN_PIN` value from `.env`.
@@ -226,13 +230,14 @@ meetmanager-app/
 │   │   ├── Organizer.jsx      # Organizer panel: meet upload, closure date, fee summary, invites, Stripe, PDF download
 │   │   ├── Athletes.jsx       # Club coach view: athlete list
 │   │   ├── Register.jsx       # Per-athlete event registration with best time columns
+│   │   ├── DataManagement.jsx # Club/style merge, entries export
 │   │   ├── Login.jsx          # PIN entry (includes link to /self-invite)
 │   │   ├── Secret.jsx         # One-time PIN reveal page (/secret/:token)
 │   │   └── SelfInvite.jsx     # Public self-invite page (/self-invite)
 │   └── buildInfo.js           # Build timestamp injected at build time
 ├── quantum/
 │   └── LSTSTYLE.en-UK         # Swiss Timing Quantum style seed file
-├── docs/                      # Workflow screenshots and PDFs
+├── docs/                      # Workflow guides, deployment guide
 ├── tests/                     # Integration tests (real PostgreSQL)
 └── docker-compose.yml
 ```

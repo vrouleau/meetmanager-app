@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+@theme {
+  --color-border: var(--color-gray-200);
+}
+
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200);
+  }
+}

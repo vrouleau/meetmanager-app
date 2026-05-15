@@ -101,7 +101,7 @@ export default function SelfInvite() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow p-6 w-full max-w-sm">
+      <div className="bg-white rounded-lg shadow-md p-6 w-full max-w-sm">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-xl font-bold">{t.self_invite_title}</h1>
           <button onClick={toggle} className="text-xs bg-gray-200 px-2 py-1 rounded hover:bg-gray-300">

@@ -29,7 +29,10 @@ SKIP_STACK = os.environ.get("MEETMGR_SKIP_STACK") == "1"
 
 def _run_compose(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(
-        ["docker", "compose", "--env-file", str(TEST_ENV_FILE), *args],
+        ["docker", "compose",
+         "-f", "docker-compose.yml",
+         "-f", "docker-compose.test.yml",
+         "--env-file", str(TEST_ENV_FILE), *args],
         cwd=REPO_ROOT, check=check, capture_output=True,
     )
 

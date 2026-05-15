@@ -27,11 +27,11 @@ jobs:
 
       - name: Dump backend logs on failure
         if: failure()
-        run: docker compose logs --no-color backend db || true
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml logs --no-color backend db || true
 
       - name: Tear down stack
         if: always()
-        run: docker compose down -v || true
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml down -v || true
 
   frontend-build:
     runs-on: ubuntu-latest

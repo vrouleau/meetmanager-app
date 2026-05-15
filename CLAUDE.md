@@ -40,8 +40,9 @@ meetmanager-app/
 │   │   ├── DataManagement.jsx # Admin-only: club merging, style merging, export all entries
 │   │   ├── Athletes.jsx       # Club coach view: athlete list
 │   │   ├── Register.jsx       # Per-athlete event registration
-│   │   ├── Login.jsx          # PIN entry
-│   │   └── Secret.jsx         # One-time PIN reveal page (/secret/:token)
+│   │   ├── Login.jsx          # PIN entry (includes link to /self-invite)
+│   │   ├── Secret.jsx         # One-time PIN reveal page (/secret/:token)
+│   │   └── SelfInvite.jsx     # Public self-invite page (/self-invite)
 │   └── buildInfo.js           # Build timestamp injected at build time
 ├── quantum/
 │   └── LSTSTYLE.en-UK         # Swiss Timing Quantum style seed file
@@ -150,6 +151,8 @@ BEST_TIME_MAX_AGE_MONTHS=  # months before a best time is considered stale (defa
 | POST | `/invoices` | Create Stripe draft invoices for all clubs |
 | POST | `/organizer/clubs/invite-all` | Send invitation to all clubs with email set (body: `{lang}`) |
 | POST | `/secret/:token` | Reveal PIN via one-time token |
+| GET | `/self-invite/clubs` | Public: list clubs with admin email (for self-invite dropdown) |
+| POST | `/self-invite` | Public: club requests own invite email (same flow as organizer send) |
 | GET | `/data-management/styles` | List all distinct event style UIDs + names |
 | POST | `/data-management/merge-clubs` | Merge duplicate clubs (body: `[{from_id, to_id}]`) |
 | POST | `/data-management/merge-styles` | Merge diverging style UIDs, keeping faster best times |

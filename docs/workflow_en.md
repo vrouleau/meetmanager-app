@@ -74,6 +74,8 @@ Before exporting the invitation `.lxf` from SPLASH, verify that the following fi
 2. Select the clubs to invite (use the checkboxes or select all)
 3. Click **Send Invitation** — each coach receives an email with a one-time secure link to retrieve their club PIN
 
+> **Alternative — self-invite**: Coaches can also request their own invitation without waiting for the organizer. From the login page, click **Request an Invitation**, select their club, confirm the email address on file, and click **Send Invitation**. This triggers the same email and secret-link flow. The club must have an email address configured in the Admin page.
+
 ---
 
 ## Step 7 — Club Coaches Register Athletes

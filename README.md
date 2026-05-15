@@ -46,6 +46,7 @@ Web-based registration management for lifesaving competitions. Integrates with S
 - Per-club one-time encrypted PIN link (7-day expiry, Fernet encrypted), delivered via Resend
 - Bilingual invitation (FR/EN toggle per send)
 - Invite-all: sends to every club that has an admin email configured
+- **Self-invite** (`/self-invite`): public page (no login required) where a club selects their team from a dropdown, confirms their email, and requests their own invite — triggers the same email and secret-link flow as an organizer-sent invite
 
 ### Security
 - Rate limiting on PIN auth: 5 attempts per IP per 60-second window
@@ -225,8 +226,9 @@ meetmanager-app/
 │   │   ├── Organizer.jsx      # Organizer panel: meet upload, closure date, fee summary, invites, Stripe, PDF download
 │   │   ├── Athletes.jsx       # Club coach view: athlete list
 │   │   ├── Register.jsx       # Per-athlete event registration with best time columns
-│   │   ├── Login.jsx          # PIN entry
-│   │   └── Secret.jsx         # One-time PIN reveal page (/secret/:token)
+│   │   ├── Login.jsx          # PIN entry (includes link to /self-invite)
+│   │   ├── Secret.jsx         # One-time PIN reveal page (/secret/:token)
+│   │   └── SelfInvite.jsx     # Public self-invite page (/self-invite)
 │   └── buildInfo.js           # Build timestamp injected at build time
 ├── quantum/
 │   └── LSTSTYLE.en-UK         # Swiss Timing Quantum style seed file

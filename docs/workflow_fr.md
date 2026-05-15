@@ -74,6 +74,8 @@ Avant d'exporter le fichier d'invitation `.lxf` depuis SPLASH, vérifier que les
 2. Sélectionner les clubs à inviter (cases à cocher ou tout sélectionner)
 3. Cliquer **Envoyer l'invitation** — chaque responsable reçoit un courriel avec un lien sécurisé à usage unique pour récupérer le NIP de son club
 
+> **Alternative — auto-invitation** : Les responsables peuvent aussi demander leur propre invitation sans attendre l'organisateur. Depuis la page de connexion, cliquer **Demander une invitation**, sélectionner son club, confirmer l'adresse courriel enregistrée, puis cliquer **Envoyer l'invitation**. Ceci déclenche le même envoi de courriel et le même lien sécurisé. Le club doit avoir un courriel configuré dans la page Admin.
+
 ---
 
 ## Étape 7 — Les responsables inscrivent les athlètes

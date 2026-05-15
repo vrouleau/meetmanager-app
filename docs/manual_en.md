@@ -125,7 +125,7 @@ Click the date field in the **Entry closure date** row and select the last date 
 The **Team Invites** table lists all clubs with their email and invoice status.
 
 - **Send to selected**: check the clubs you want to invite and click **Send Invitation (n)**
-- Each coach receives an email with a one-time secure link. The link reveals their club PIN when clicked. The link expires after 48 hours and can only be used once.
+- Each coach receives an email with a one-time secure link. The link reveals their club PIN when clicked. The link expires after 7 days and can only be used once.
 
 > Clubs without an email address cannot receive invitations. Set the email in the Admin → Club Manager.
 
@@ -183,11 +183,22 @@ Items with a zero fee or zero quantity are omitted from the invoice.
 
 Enter your club PIN on the login page. You will land on the **Athletes** page showing only your club's athletes.
 
-> If you have not received your PIN yet, ask the meet organizer to send you an invitation email. Click the link in the email to reveal your PIN.
+> If you have not received your PIN yet, ask the meet organizer to send you an invitation email, or click **Request an Invitation** on the login page to send it yourself. Click the link in the email to reveal your PIN.
 
 ## Secret PIN Links
 
-When the organizer sends an invitation, you receive an email with a one-time link. Clicking the link shows your club PIN on a secure page. The link expires after 48 hours and can only be used once. Store your PIN safely — you will need it to log in.
+When an invitation is sent (by the organizer or by self-invite), you receive an email with a one-time link. Clicking the link shows your club PIN on a secure page. The link expires after 7 days and can only be used once. Store your PIN safely — you will need it to log in.
+
+## Self-Invite
+
+If you have not received an invitation, you can request one yourself without contacting the organizer:
+
+1. On the login page, click **Request an Invitation**
+2. Select your club from the dropdown
+3. Confirm the email address shown (read-only — set by the admin)
+4. Click **Send Invitation**
+
+You will receive the same invitation email as if the organizer had sent it. Your club must have an email address configured in Admin → Club Manager for this to work.
 
 ## Viewing Athletes
 
@@ -292,9 +303,9 @@ The entry time pre-fills from the athlete's best time for the pool size matching
 ## Invitation Email Not Received
 
 - Confirm the club's email is set correctly in Admin → Club Manager
-- Ask the organizer to re-send the invitation
+- Ask the organizer to re-send the invitation, or use **Request an Invitation** on the login page to send it yourself
 - Check the spam/junk folder
-- PIN links expire after 48 hours — a new invitation must be sent if the link has expired
+- PIN links expire after 7 days — a new invitation must be sent if the link has expired
 
 ## Stripe Invoice Error
 
@@ -320,6 +331,7 @@ The entry time pre-fills from the athlete's best time for the pool size matching
 | Organizer | Admin, Organizer | Upload meet, closure date, invitations, export, invoices |
 | Admin | Admin | Upload Lenex, manage clubs, set organizer, flush meet, change PIN |
 | Data Management | Admin | Club/style merging, export entries |
+| Self-Invite (`/self-invite`) | Public (no login) | Select club, confirm email, receive own invitation |
 
 ## Key Keyboard / UI Shortcuts
 

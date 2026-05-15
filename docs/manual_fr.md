@@ -125,7 +125,7 @@ Cliquer sur le champ de date dans la ligne **Date limite d'inscription** et sél
 Le tableau **Invitations aux équipes** liste tous les clubs avec leur courriel et leur statut de facturation.
 
 - **Envoyer aux sélectionnés** : cocher les clubs à inviter et cliquer **Envoyer l'invitation (n)**
-- Chaque responsable reçoit un courriel avec un lien sécurisé à usage unique. Le lien révèle le NIP du club lorsqu'on clique dessus. Le lien expire après 48 heures et ne peut être utilisé qu'une seule fois.
+- Chaque responsable reçoit un courriel avec un lien sécurisé à usage unique. Le lien révèle le NIP du club lorsqu'on clique dessus. Le lien expire après 7 jours et ne peut être utilisé qu'une seule fois.
 
 > Les clubs sans adresse courriel ne peuvent pas recevoir d'invitations. Définir le courriel dans Admin → Gestion des clubs.
 
@@ -182,11 +182,22 @@ Les éléments avec un tarif nul ou une quantité nulle sont omis de la facture.
 
 Entrer le NIP du club sur la page de connexion. La page **Athlètes** s'affiche, montrant uniquement les athlètes de votre club.
 
-> Si vous n'avez pas encore reçu votre NIP, demander à l'organisateur de vous envoyer un courriel d'invitation. Cliquer sur le lien dans le courriel pour révéler votre NIP.
+> Si vous n'avez pas encore reçu votre NIP, demander à l'organisateur de vous envoyer un courriel d'invitation, ou cliquer **Demander une invitation** sur la page de connexion pour vous l'envoyer vous-même. Cliquer sur le lien dans le courriel pour révéler votre NIP.
 
 ## Liens NIP sécurisés
 
-Lorsque l'organisateur envoie une invitation, vous recevez un courriel avec un lien à usage unique. Cliquer sur le lien affiche le NIP de votre club sur une page sécurisée. Le lien expire après 48 heures et ne peut être utilisé qu'une seule fois. Conservez votre NIP en lieu sûr — vous en aurez besoin pour vous connecter.
+Lorsqu'une invitation est envoyée (par l'organisateur ou par auto-invitation), vous recevez un courriel avec un lien à usage unique. Cliquer sur le lien affiche le NIP de votre club sur une page sécurisée. Le lien expire après 7 jours et ne peut être utilisé qu'une seule fois. Conservez votre NIP en lieu sûr — vous en aurez besoin pour vous connecter.
+
+## Auto-invitation
+
+Si vous n'avez pas reçu d'invitation, vous pouvez en demander une vous-même sans contacter l'organisateur :
+
+1. Sur la page de connexion, cliquer **Demander une invitation**
+2. Sélectionner votre club dans la liste déroulante
+3. Confirmer l'adresse courriel affichée (lecture seule — définie par l'administrateur)
+4. Cliquer **Envoyer l'invitation**
+
+Vous recevrez le même courriel d'invitation que si l'organisateur l'avait envoyé. Votre club doit avoir un courriel configuré dans Admin → Gestion des clubs.
 
 ## Consulter les athlètes
 
@@ -291,9 +302,9 @@ Le temps d'inscription se pré-remplit depuis le meilleur temps de l'athlète po
 ## Courriel d'invitation non reçu
 
 - Vérifier que le courriel du club est correctement défini dans Admin → Gestion des clubs
-- Demander à l'organisateur de renvoyer l'invitation
+- Demander à l'organisateur de renvoyer l'invitation, ou utiliser **Demander une invitation** sur la page de connexion pour vous l'envoyer vous-même
 - Vérifier le dossier courrier indésirable / spam
-- Les liens NIP expirent après 48 heures — une nouvelle invitation doit être envoyée si le lien a expiré
+- Les liens NIP expirent après 7 jours — une nouvelle invitation doit être envoyée si le lien a expiré
 
 ## Erreur de facture Stripe
 
@@ -319,6 +330,7 @@ Le temps d'inscription se pré-remplit depuis le meilleur temps de l'athlète po
 | Organisateur | Admin, Organisateur | Téléverser compétition, date limite, invitations, export, factures |
 | Admin | Admin | Téléverser Lenex, gérer les clubs, désigner l'organisateur, réinitialiser, changer NIP |
 | Gestion des données | Admin | Fusion clubs/styles, exporter inscriptions |
+| Auto-invitation (`/self-invite`) | Public (sans connexion) | Sélectionner son club, confirmer le courriel, recevoir sa propre invitation |
 
 ## Raccourcis clavier / interface
 

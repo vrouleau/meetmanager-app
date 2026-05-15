@@ -74,12 +74,12 @@ export default function DataManagement() {
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">{t.data_management}</h1>
+      <h1 className="text-2xl font-bold mb-6 text-balance">{t.data_management}</h1>
 
       {/* Club merging */}
       <div className="border p-4 rounded mb-6">
         <h2 className="font-semibold mb-1">{t.merge_clubs}</h2>
-        <p className="text-sm text-gray-600 mb-3">{t.merge_clubs_desc}</p>
+        <p className="text-sm text-gray-600 mb-3 text-pretty">{t.merge_clubs_desc}</p>
         <div className="max-h-72 overflow-y-auto border rounded mb-3">
           <table className="w-full text-sm">
             <thead>
@@ -120,7 +120,7 @@ export default function DataManagement() {
         <button
           onClick={resolveClubs}
           disabled={!pendingClubs.length}
-          className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-600/85 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {t.resolve}{pendingClubs.length > 0 ? ` (${pendingClubs.length})` : ''}
         </button>
@@ -129,7 +129,7 @@ export default function DataManagement() {
       {/* Style merging */}
       <div className="border p-4 rounded mb-6">
         <h2 className="font-semibold mb-1">{t.merge_styles}</h2>
-        <p className="text-sm text-gray-600 mb-3">{t.merge_styles_desc}</p>
+        <p className="text-sm text-gray-600 mb-3 text-pretty">{t.merge_styles_desc}</p>
         <div className="max-h-72 overflow-y-auto border rounded mb-3">
           <table className="w-full text-sm">
             <thead>
@@ -172,7 +172,7 @@ export default function DataManagement() {
         <button
           onClick={resolveStyles}
           disabled={!pendingStyles.length}
-          className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-600/85 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {t.resolve}{pendingStyles.length > 0 ? ` (${pendingStyles.length})` : ''}
         </button>
@@ -181,10 +181,10 @@ export default function DataManagement() {
       {/* Export all data */}
       <div className="border p-4 rounded mb-4">
         <h2 className="font-semibold mb-1">{t.export_entries}</h2>
-        <p className="text-sm text-gray-600 mb-3">{t.export_entries_desc}</p>
+        <p className="text-sm text-gray-600 mb-3 text-pretty">{t.export_entries_desc}</p>
         <button
           onClick={exportEntries}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-600/85"
         >
           {t.download_entries_lxf}
         </button>

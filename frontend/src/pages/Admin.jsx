@@ -123,7 +123,7 @@ export default function Admin() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">{t.admin}</h1>
+      <h1 className="text-2xl font-bold mb-4 text-balance">{t.admin}</h1>
 
       {status && (
         <div className="mb-4 p-3 bg-gray-100 rounded text-sm">
@@ -135,7 +135,7 @@ export default function Admin() {
       <div className="space-y-4">
         <div className="border p-4 rounded">
           <h2 className="font-semibold mb-2">{t.upload_lxf}</h2>
-          <p className="text-sm text-gray-600 mb-2">{t.upload_lxf_desc}</p>
+          <p className="text-sm text-gray-600 mb-2 text-pretty">{t.upload_lxf_desc}</p>
           <input type="file" accept=".lxf" onChange={uploadEntries} />
         </div>
 
@@ -157,27 +157,27 @@ export default function Admin() {
 
         <div className="border p-4 rounded">
           <h2 className="font-semibold mb-2">{t.regen_pins}</h2>
-          <p className="text-sm text-gray-600 mb-2">{t.regen_pins_desc}</p>
+          <p className="text-sm text-gray-600 mb-2 text-pretty">{t.regen_pins_desc}</p>
           <button onClick={async () => {
             if (!confirm('Regenerate ALL club PINs? Coaches will need new PINs.')) return
             const r = await api.post('/clubs/regenerate-pins', {})
             setMsg(`Regenerated PINs for ${r.data.regenerated} clubs`)
             loadStatus()
-          }} className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">
+          }} className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-600/85">
             Regenerate PINs
           </button>
         </div>
 
         <div className="border p-4 rounded">
           <h2 className="font-semibold mb-2">{t.flush_meet}</h2>
-          <p className="text-sm text-gray-600 mb-2">{t.flush_meet_desc}</p>
+          <p className="text-sm text-gray-600 mb-2 text-pretty">{t.flush_meet_desc}</p>
           <button onClick={async () => {
             if (!confirm(t.confirm_flush_meet)) return
             const r = await api.delete('/registrations')
             setMsg(`${t.flush_meet}: ${r.data.deleted} registrations deleted`)
             loadStatus()
             loadOrganizer()
-          }} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+          }} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-600/85">
             {t.flush_meet}
           </button>
         </div>
@@ -202,7 +202,7 @@ export default function Admin() {
                 ))}
               </select>
               {selectedClubId && (
-                <button className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+                <button className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-600/85"
                   onClick={async () => {
                     const club = clubs.find(c => String(c.id) === String(selectedClubId))
                     try {
@@ -254,7 +254,7 @@ export default function Admin() {
               value={newClubName} onChange={e => setNewClubName(e.target.value)} />
             <input type="email" className="border p-2 rounded flex-1" placeholder="Email"
               value={newClubEmail} onChange={e => setNewClubEmail(e.target.value)} />
-            <button onClick={addClub} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+            <button onClick={addClub} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-600/85">
               {t.add}
             </button>
           </div>

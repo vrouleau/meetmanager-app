@@ -103,12 +103,12 @@ export default function SelfInvite() {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-md p-6 w-full max-w-sm">
         <div className="flex justify-between items-center mb-4">
-          <h1 className="text-xl font-bold">{t.self_invite_title}</h1>
+          <h1 className="text-xl font-bold text-balance">{t.self_invite_title}</h1>
           <button onClick={toggle} className="text-xs bg-gray-200 px-2 py-1 rounded hover:bg-gray-300">
             {lang === 'fr' ? 'EN' : 'FR'}
           </button>
         </div>
-        {meetName && <p className="text-sm text-gray-600 mb-4 font-medium">{meetName}</p>}
+        {meetName && <p className="text-sm text-gray-600 mb-4 font-medium text-pretty">{meetName}</p>}
 
         {closed && (
           <p className="text-red-600 text-sm font-medium">{t.self_invite_closed}</p>
@@ -152,7 +152,7 @@ export default function SelfInvite() {
             <button
               onClick={handleSend}
               disabled={!selectedClubId || !email.trim() || sending || (TURNSTILE_SITE_KEY && !captchaToken)}
-              className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
+              className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-600/85 disabled:opacity-50 text-sm font-medium"
             >
               {sending ? '…' : t.self_invite_send_btn}
             </button>

@@ -137,9 +137,9 @@ export default function Organizer() {
   const buttonLabel = mode === 'invite' ? t.send_invitation
     : mode === 'stripe' ? t.send_stripe_invoice_btn
     : t.download_invoices_btn
-  const buttonColor = mode === 'invite' ? 'bg-green-600 hover:bg-green-700'
-    : mode === 'stripe' ? 'bg-blue-600 hover:bg-blue-700'
-    : 'bg-gray-600 hover:bg-gray-700'
+  const buttonColor = mode === 'invite' ? 'bg-green-600 hover:bg-green-600/85'
+    : mode === 'stripe' ? 'bg-blue-600 hover:bg-blue-600/85'
+    : 'bg-gray-600 hover:bg-gray-600/85'
 
   function statusText(c) {
     const parts = []
@@ -152,7 +152,7 @@ export default function Organizer() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">{t.organizer}</h1>
+      <h1 className="text-2xl font-bold mb-4 text-balance">{t.organizer}</h1>
 
       {/* Meet info */}
       {meetInfo && (
@@ -184,7 +184,7 @@ export default function Organizer() {
           </>
         ) : (
           <button onClick={connectStripe}
-            className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 text-sm">
+            className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-600/85 text-sm">
             {t.stripe_connect_btn}
           </button>
         )}
@@ -206,7 +206,7 @@ export default function Organizer() {
       {/* Meet upload */}
       <div className="border p-4 rounded mb-4">
         <h2 className="font-semibold mb-2">{t.upload_meet}</h2>
-        <p className="text-sm text-gray-600 mb-1">{t.export_meet_smb_desc}</p>
+        <p className="text-sm text-gray-600 mb-1 text-pretty">{t.export_meet_smb_desc}</p>
         <button
           onClick={() => {
             fetch('/api/export/meet-smb', { headers: { 'X-Club-Pin': localStorage.getItem('pin') || '' } })
@@ -219,20 +219,20 @@ export default function Organizer() {
               })
               .catch(e => setMsg(e.message || 'Error'))
           }}
-          className="bg-gray-600 text-white px-3 py-1.5 rounded hover:bg-gray-700 text-sm mb-3"
+          className="bg-gray-600 text-white px-3 py-1.5 rounded hover:bg-gray-600/85 text-sm mb-3"
         >
           {t.export_meet_smb}
         </button>
-        <p className="text-sm text-gray-600 mb-2">{t.upload_meet_desc}</p>
+        <p className="text-sm text-gray-600 mb-2 text-pretty">{t.upload_meet_desc}</p>
         <input type="file" accept=".lxf" onChange={uploadMeet} />
       </div>
 
       {/* Export */}
       <div className="border p-4 rounded mb-4">
         <h2 className="font-semibold mb-2">{t.export}</h2>
-        <p className="text-sm text-gray-600 mb-2">{t.export_desc}</p>
+        <p className="text-sm text-gray-600 mb-2 text-pretty">{t.export_desc}</p>
         <button onClick={exportLxf}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-600/85">
           {t.download_lxf}
         </button>
       </div>

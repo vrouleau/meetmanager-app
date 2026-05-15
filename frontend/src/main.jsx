@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Link } from 'react-router'
 import './index.css'
 import { LangProvider, useLang } from './i18n'
 import Login from './pages/Login'

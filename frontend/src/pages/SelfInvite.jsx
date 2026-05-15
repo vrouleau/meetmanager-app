@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { useLang } from '../i18n'
 
 const TURNSTILE_SITE_KEY = window.__TURNSTILE_SITE_KEY__ || ''

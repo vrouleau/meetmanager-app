@@ -30,11 +30,13 @@ pub async fn load_from_parsed(pool: &PgPool, meet: &ParsedMeet) -> Result<i32, s
         .await?;
 
         for ag in &ev.agegroups {
+            let code = age_range_to_code(ag.agemin, ag.agemax);
             sqlx::query(
-                "INSERT INTO age_groups (event_id, splash_agegroup_id, age_min, age_max) VALUES ($1, $2, $3, $4)"
+                "INSERT INTO age_groups (event_id, splash_agegroup_id, code, age_min, age_max) VALUES ($1, $2, $3, $4, $5)"
             )
             .bind(row.0)
             .bind(ag.agegroupid)
+            .bind(&code)
             .bind(ag.agemin)
             .bind(ag.agemax)
             .execute(pool)
@@ -56,4 +58,19 @@ pub async fn load_events_if_empty(pool: &PgPool, lxf_path: &std::path::Path) -> 
     let data = std::fs::read(lxf_path).map_err(|e| e.to_string())?;
     let meet = crate::meet_parser::parse_meet_lxf(&data)?;
     load_from_parsed(pool, &meet).await.map_err(|e| e.to_string())
+}
+
+fn age_range_to_code(agemin: i32, agemax: i32) -> String {
+    match (agemin, agemax) {
+        (_, -1) => "Open".to_string(),
+        (0, max) if max <= 10 => "10-".to_string(),
+        (1, max) if max <= 10 => "10-".to_string(),
+        (11, 12) => "11-12".to_string(),
+        (13, 14) => "13-14".to_string(),
+        (15, 18) => "15-18".to_string(),
+        (15, _) => "15-18".to_string(),
+        (19, _) | (0, 99) | (0, 0) => "Open".to_string(),
+        (min, _) if min >= 25 => "Masters".to_string(),
+        (min, max) => format!("{min}-{max}"),
+    }
 }

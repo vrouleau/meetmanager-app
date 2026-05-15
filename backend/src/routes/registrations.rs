@@ -12,7 +12,7 @@ use crate::state::AppState;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/registrations", post(create_registration).delete(flush_meet))
-        .route("/api/registrations/{reg_id}", delete(delete_registration))
+        .route("/api/registrations/:reg_id", delete(delete_registration))
 }
 
 async fn create_registration(
@@ -28,6 +28,19 @@ async fn create_registration(
     let event_id = data["event_id"].as_i64().ok_or((StatusCode::BAD_REQUEST, "event_id required".to_string()))? as i32;
     let age_code = data["age_code"].as_str().unwrap_or("Open");
     let entry_time_ms = data["entry_time_ms"].as_i64().map(|v| v as i32);
+
+    // Validate entry_time_ms
+    if let Some(t) = entry_time_ms {
+        if t < 0 {
+            return Err((StatusCode::UNPROCESSABLE_ENTITY, "entry_time_ms must be non-negative".to_string()));
+        }
+    }
+
+    // Validate age_code
+    let valid_codes = ["10-", "11-12", "13-14", "15-18", "Open", "Masters"];
+    if !valid_codes.contains(&age_code) {
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, "invalid age_code".to_string()));
+    }
 
     // Ownership check
     let ath: Option<(i32,)> = sqlx::query_as("SELECT club_id FROM athletes WHERE id = $1")
@@ -46,6 +59,14 @@ async fn create_registration(
         .bind(event_id).fetch_optional(&state.pool).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let (relay_count, _masters) = ev.ok_or((StatusCode::NOT_FOUND, "Event not found".to_string()))?;
+
+    // Validate age_code against event's age groups
+    let age_groups: Vec<(String,)> = sqlx::query_as(
+        "SELECT code FROM age_groups WHERE event_id = $1"
+    ).bind(event_id).fetch_all(&state.pool).await.unwrap_or_default();
+    if !age_groups.is_empty() && !age_groups.iter().any(|(c,)| c == age_code) {
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, "age_code not valid for this event".to_string()));
+    }
 
     // Relay lock
     if relay_count > 1 {

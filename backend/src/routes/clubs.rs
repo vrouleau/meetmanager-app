@@ -14,8 +14,8 @@ use crate::state::AppState;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/clubs", get(list_clubs).post(create_club))
-        .route("/api/clubs/{club_id}", delete(delete_club).put(update_club))
-        .route("/api/clubs/{club_id}/reset-pin", post(reset_pin))
+        .route("/api/clubs/:club_id", delete(delete_club).put(update_club))
+        .route("/api/clubs/:club_id/reset-pin", post(reset_pin))
         .route("/api/clubs/regenerate-pins", post(regenerate_pins))
 }
 
@@ -86,7 +86,7 @@ async fn create_club(
 
     let name = data["name"].as_str().unwrap_or("").trim();
     if name.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "name required".to_string()));
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, "name required".to_string()));
     }
     let code = data["code"].as_str().unwrap_or("");
     let nation = data["nation"].as_str().unwrap_or("CAN");

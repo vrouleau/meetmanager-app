@@ -12,9 +12,9 @@ use crate::state::AppState;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/clubs/{club_id}/invoice-total", get(invoice_total))
-        .route("/api/clubs/{club_id}/invoice", post(send_invoice))
-        .route("/api/clubs/{club_id}/create-invoice", post(create_invoice))
+        .route("/api/clubs/:club_id/invoice-total", get(invoice_total))
+        .route("/api/clubs/:club_id/invoice", post(send_invoice))
+        .route("/api/clubs/:club_id/create-invoice", post(create_invoice))
         .route("/api/stripe/connect", post(stripe_connect))
         .route("/api/stripe/status", get(stripe_status))
         .route("/api/stripe/disconnect", post(stripe_disconnect))

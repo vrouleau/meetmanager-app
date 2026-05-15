@@ -62,6 +62,7 @@ pub async fn run_migrations(pool: &PgPool) {
             id SERIAL PRIMARY KEY,
             event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
             splash_agegroup_id INTEGER NOT NULL,
+            code TEXT NOT NULL DEFAULT '',
             age_min INTEGER NOT NULL,
             age_max INTEGER NOT NULL
         );

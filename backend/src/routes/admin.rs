@@ -4,6 +4,7 @@ use axum::{
     routing::{get, post, put},
     Json, Router,
 };
+use chrono::NaiveDate;
 use serde_json::{json, Value};
 
 use crate::auth::{require_admin, require_organizer_or_admin};
@@ -45,10 +46,11 @@ async fn get_organizer(
 async fn set_organizer(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(data): Json<Value>,
+    body: Option<Json<Value>>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let pin = headers.get("x-club-pin").and_then(|v| v.to_str().ok()).unwrap_or("");
     require_admin(&state, pin).await.map_err(|(s, m)| (s, m.to_string()))?;
+    let data = body.map(|Json(v)| v).unwrap_or(Value::Null);
 
     let club_id = data["club_id"].as_i64().ok_or((StatusCode::BAD_REQUEST, "club_id required".to_string()))? as i32;
     let exists: Option<(i32,)> = sqlx::query_as("SELECT id FROM clubs WHERE id = $1")
@@ -67,14 +69,15 @@ async fn set_organizer(
 async fn change_pin(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(data): Json<Value>,
+    body: Option<Json<Value>>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let pin = headers.get("x-club-pin").and_then(|v| v.to_str().ok()).unwrap_or("");
     require_admin(&state, pin).await.map_err(|(s, m)| (s, m.to_string()))?;
+    let data = body.map(|Json(v)| v).unwrap_or(Value::Null);
 
-    let new_pin = data["pin"].as_str().ok_or((StatusCode::BAD_REQUEST, "pin required".to_string()))?;
+    let new_pin = data["pin"].as_str().ok_or((StatusCode::UNPROCESSABLE_ENTITY, "pin required".to_string()))?;
     if new_pin.len() < 4 || new_pin.len() > 20 {
-        return Err((StatusCode::BAD_REQUEST, "PIN must be 4-20 characters".to_string()));
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, "PIN must be 4-20 characters".to_string()));
     }
 
     sqlx::query("INSERT INTO app_config (key, value) VALUES ('admin_pin', $1) ON CONFLICT (key) DO UPDATE SET value = $1")
@@ -87,12 +90,18 @@ async fn change_pin(
 async fn set_closure_date(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(data): Json<Value>,
+    body: Option<Json<Value>>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let pin = headers.get("x-club-pin").and_then(|v| v.to_str().ok()).unwrap_or("");
     require_organizer_or_admin(&state, pin).await.map_err(|(s, m)| (s, m.to_string()))?;
+    let data = body.map(|Json(v)| v).unwrap_or(Value::Null);
 
     let val = data["closure_date"].as_str().unwrap_or("");
+    if !val.is_empty() {
+        if chrono::NaiveDate::parse_from_str(val, "%Y-%m-%d").is_err() {
+            return Err((StatusCode::UNPROCESSABLE_ENTITY, "Invalid date format".to_string()));
+        }
+    }
     sqlx::query("INSERT INTO app_config (key, value) VALUES ('closure_date', $1) ON CONFLICT (key) DO UPDATE SET value = $1")
         .bind(val).execute(&state.pool).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -125,10 +134,11 @@ async fn get_styles(
 async fn merge_clubs(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(data): Json<Value>,
+    body: Option<Json<Value>>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let pin = headers.get("x-club-pin").and_then(|v| v.to_str().ok()).unwrap_or("");
     require_admin(&state, pin).await.map_err(|(s, m)| (s, m.to_string()))?;
+    let data = body.map(|Json(v)| v).unwrap_or(Value::Null);
 
     let merges = data["merges"].as_array().ok_or((StatusCode::BAD_REQUEST, "merges required".to_string()))?;
     let mut merged = 0;
@@ -161,10 +171,11 @@ async fn merge_clubs(
 async fn merge_styles(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(data): Json<Value>,
+    body: Option<Json<Value>>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let pin = headers.get("x-club-pin").and_then(|v| v.to_str().ok()).unwrap_or("");
     require_admin(&state, pin).await.map_err(|(s, m)| (s, m.to_string()))?;
+    let data = body.map(|Json(v)| v).unwrap_or(Value::Null);
 
     let merges = data["merges"].as_array().ok_or((StatusCode::BAD_REQUEST, "merges required".to_string()))?;
     let mut merged_rows = 0i64;

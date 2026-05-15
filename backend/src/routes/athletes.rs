@@ -14,8 +14,8 @@ use crate::state::AppState;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/athletes", get(list_athletes).post(create_athlete))
-        .route("/api/athletes/{athlete_id}", delete(delete_athlete).put(update_athlete))
-        .route("/api/athletes/{athlete_id}/registration", get(get_registration))
+        .route("/api/athletes/:athlete_id", delete(delete_athlete).put(update_athlete))
+        .route("/api/athletes/:athlete_id/registration", get(get_registration))
 }
 
 #[derive(Deserialize)]
@@ -67,7 +67,7 @@ async fn create_athlete(
     check_closure(&state.pool, pin).await?;
 
     let role = resolve_role(pin, &state.pool).await;
-    let club_id = data["club_id"].as_i64().ok_or((StatusCode::BAD_REQUEST, "club_id required".to_string()))? as i32;
+    let club_id = data["club_id"].as_i64().ok_or((StatusCode::UNPROCESSABLE_ENTITY, "club_id required".to_string()))? as i32;
 
     if let Some(caller_club) = role.club_id() {
         if club_id != caller_club {
@@ -78,9 +78,17 @@ async fn create_athlete(
     let first = data["first_name"].as_str().unwrap_or("").trim();
     let last = data["last_name"].as_str().unwrap_or("").trim();
     if first.is_empty() || last.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "first_name and last_name required".to_string()));
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, "first_name and last_name required".to_string()));
     }
     let gender = data["gender"].as_str().unwrap_or("M");
+    if gender != "M" && gender != "F" {
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, "gender must be M or F".to_string()));
+    }
+    if let Some(bd) = data["birthdate"].as_str() {
+        if !bd.is_empty() && NaiveDate::parse_from_str(bd, "%Y-%m-%d").is_err() {
+            return Err((StatusCode::UNPROCESSABLE_ENTITY, "invalid birthdate format".to_string()));
+        }
+    }
     let birthdate: Option<NaiveDate> = data["birthdate"].as_str()
         .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
     let license = data["license"].as_str().unwrap_or("");

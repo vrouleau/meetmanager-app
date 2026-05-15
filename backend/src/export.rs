@@ -43,10 +43,27 @@ pub async fn generate_lxf(pool: &PgPool) -> Result<Vec<u8>, String> {
 
     // Group by club -> athlete -> entries
     use std::collections::BTreeMap;
+
+    // Load age_groups for agegroupid lookup: (event_id, code) -> splash_agegroup_id
+    let ag_rows: Vec<(i32, String, i32)> = sqlx::query_as(
+        "SELECT event_id, code, splash_agegroup_id FROM age_groups"
+    ).fetch_all(pool).await.map_err(|e| e.to_string())?;
+    let mut ag_map: std::collections::HashMap<(i32, String), i32> = std::collections::HashMap::new();
+    for (eid, code, agid) in &ag_rows {
+        ag_map.insert((*eid, code.clone()), *agid);
+    }
+
+    // Also need event_id from registrations for the lookup
+    let reg_event_ids: Vec<(i32, i32)> = sqlx::query_as(
+        "SELECT r.id, r.event_id FROM registrations r"
+    ).fetch_all(pool).await.map_err(|e| e.to_string())?;
+    let reg_eid_map: std::collections::HashMap<i32, i32> = reg_event_ids.into_iter().collect();
+
     struct EntryData {
         splash_event_id: i32,
         age_code: String,
         entry_time_ms: Option<i32>,
+        splash_agegroupid: Option<i32>,
     }
     struct AthData {
         id: i32,
@@ -83,10 +100,14 @@ pub async fn generate_lxf(pool: &PgPool) -> Result<Vec<u8>, String> {
             entries: Vec::new(),
         });
         if let Some(splash_eid) = row.15 {
+            let reg_id = row.0;
+            let event_id = reg_eid_map.get(&reg_id).copied().unwrap_or(0);
+            let agid = ag_map.get(&(event_id, row.2.clone())).copied();
             ath.entries.push(EntryData {
                 splash_event_id: splash_eid,
                 age_code: row.2.clone(),
                 entry_time_ms: row.3,
+                splash_agegroupid: agid,
             });
         }
     }
@@ -157,6 +178,9 @@ pub async fn generate_lxf(pool: &PgPool) -> Result<Vec<u8>, String> {
             for entry in &ath.entries {
                 let mut entry_el = BytesStart::new("ENTRY");
                 entry_el.push_attribute(("eventid", entry.splash_event_id.to_string().as_str()));
+                if let Some(agid) = entry.splash_agegroupid {
+                    entry_el.push_attribute(("agegroupid", agid.to_string().as_str()));
+                }
                 entry_el.push_attribute(("entrycourse", meet.course.as_str()));
                 if let Some(ms) = entry.entry_time_ms {
                     entry_el.push_attribute(("entrytime", ms_to_lenex(Some(ms)).as_str()));

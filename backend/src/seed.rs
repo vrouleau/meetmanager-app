@@ -43,33 +43,23 @@ fn parse_clubs_xml(xml: &[u8]) -> Result<Vec<ClubData>, String> {
     let mut buf = Vec::new();
     let mut clubs: Vec<ClubData> = Vec::new();
     let mut current_club: Option<ClubData> = None;
-    let mut current_athlete: Option<AthleteData> = None;
     let mut in_meet = false;
     let mut in_clubs = false;
     let mut in_club = false;
-    let mut in_athlete = false;
 
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(XmlEvent::Eof) => break,
-            Ok(XmlEvent::Start(ref e)) | Ok(XmlEvent::Empty(ref e)) => {
-                let tag = String::from_utf8_lossy(e.name().as_ref()).to_string();
-                let is_empty = matches!(reader.read_event_into(&mut Vec::new()), _); // peek
-                // Re-read: we need to handle Start vs Empty
+            Ok(XmlEvent::Start(ref e)) => {
+                let tag = String::from_utf8_lossy(e.name().as_ref()).to_uppercase();
                 match tag.as_str() {
                     "MEET" => in_meet = true,
                     "CLUBS" if in_meet => in_clubs = true,
                     "CLUB" if in_clubs => {
                         in_club = true;
-                        let mut club = ClubData {
-                            name: String::new(),
-                            code: String::new(),
-                            nation: String::new(),
-                            email: String::new(),
-                            athletes: Vec::new(),
-                        };
+                        let mut club = ClubData { name: String::new(), code: String::new(), nation: String::new(), email: String::new(), athletes: Vec::new() };
                         for attr in e.attributes().flatten() {
-                            let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                            let key = String::from_utf8_lossy(attr.key.as_ref()).to_lowercase();
                             let val = String::from_utf8_lossy(&attr.value).to_string();
                             match key.as_str() {
                                 "name" => club.name = val,
@@ -80,11 +70,17 @@ fn parse_clubs_xml(xml: &[u8]) -> Result<Vec<ClubData>, String> {
                         }
                         current_club = Some(club);
                     }
+                    "ATHLETE" if in_club => {
+                        if let Some(ath) = parse_athlete_attrs(e) {
+                            if let Some(ref mut club) = current_club {
+                                club.athletes.push(ath);
+                            }
+                        }
+                    }
                     "CONTACT" if in_club => {
                         if let Some(ref mut club) = current_club {
                             for attr in e.attributes().flatten() {
-                                let key =
-                                    String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                                let key = String::from_utf8_lossy(attr.key.as_ref()).to_lowercase();
                                 let val = String::from_utf8_lossy(&attr.value).to_string();
                                 if key == "email" || key == "e-mail" {
                                     club.email = val;
@@ -92,51 +88,50 @@ fn parse_clubs_xml(xml: &[u8]) -> Result<Vec<ClubData>, String> {
                             }
                         }
                     }
-                    "ATHLETE" if in_club => {
-                        in_athlete = true;
-                        let mut ath = AthleteData {
-                            first_name: String::new(),
-                            last_name: String::new(),
-                            gender: "M".to_string(),
-                            birthdate: None,
-                            license: String::new(),
-                            exception: None,
-                        };
+                    _ => {}
+                }
+            }
+            Ok(XmlEvent::Empty(ref e)) => {
+                let tag = String::from_utf8_lossy(e.name().as_ref()).to_uppercase();
+                match tag.as_str() {
+                    "CLUB" if in_clubs => {
+                        let mut club = ClubData { name: String::new(), code: String::new(), nation: String::new(), email: String::new(), athletes: Vec::new() };
                         for attr in e.attributes().flatten() {
-                            let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                            let key = String::from_utf8_lossy(attr.key.as_ref()).to_lowercase();
                             let val = String::from_utf8_lossy(&attr.value).to_string();
                             match key.as_str() {
-                                "firstname" => {
-                                    ath.first_name = val.trim().trim_end_matches(',').to_string()
-                                }
-                                "lastname" => {
-                                    ath.last_name = val.trim().trim_end_matches(',').to_string()
-                                }
-                                "gender" => ath.gender = val,
-                                "birthdate" => {
-                                    ath.birthdate = NaiveDate::parse_from_str(&val, "%Y-%m-%d").ok()
-                                }
-                                "license" => ath.license = val,
-                                "exception" => ath.exception = Some(val),
+                                "name" => club.name = val,
+                                "code" => club.code = val,
+                                "nation" => club.nation = val,
                                 _ => {}
                             }
                         }
-                        current_athlete = Some(ath);
+                        clubs.push(club);
+                    }
+                    "ATHLETE" if in_club => {
+                        if let Some(ath) = parse_athlete_attrs(e) {
+                            if let Some(ref mut club) = current_club {
+                                club.athletes.push(ath);
+                            }
+                        }
+                    }
+                    "CONTACT" if in_club => {
+                        if let Some(ref mut club) = current_club {
+                            for attr in e.attributes().flatten() {
+                                let key = String::from_utf8_lossy(attr.key.as_ref()).to_lowercase();
+                                let val = String::from_utf8_lossy(&attr.value).to_string();
+                                if key == "email" || key == "e-mail" {
+                                    club.email = val;
+                                }
+                            }
+                        }
                     }
                     _ => {}
                 }
             }
             Ok(XmlEvent::End(ref e)) => {
-                let tag = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let tag = String::from_utf8_lossy(e.name().as_ref()).to_uppercase();
                 match tag.as_str() {
-                    "ATHLETE" if in_athlete => {
-                        if let (Some(ref mut club), Some(ath)) =
-                            (&mut current_club, current_athlete.take())
-                        {
-                            club.athletes.push(ath);
-                        }
-                        in_athlete = false;
-                    }
                     "CLUB" if in_club => {
                         if let Some(club) = current_club.take() {
                             clubs.push(club);
@@ -154,6 +149,31 @@ fn parse_clubs_xml(xml: &[u8]) -> Result<Vec<ClubData>, String> {
         buf.clear();
     }
     Ok(clubs)
+}
+
+fn parse_athlete_attrs(e: &quick_xml::events::BytesStart) -> Option<AthleteData> {
+    let mut ath = AthleteData {
+        first_name: String::new(),
+        last_name: String::new(),
+        gender: "M".to_string(),
+        birthdate: None,
+        license: String::new(),
+        exception: None,
+    };
+    for attr in e.attributes().flatten() {
+        let key = String::from_utf8_lossy(attr.key.as_ref()).to_lowercase();
+        let val = String::from_utf8_lossy(&attr.value).to_string();
+        match key.as_str() {
+            "firstname" => ath.first_name = val.trim().trim_end_matches(',').to_string(),
+            "lastname" => ath.last_name = val.trim().trim_end_matches(',').to_string(),
+            "gender" => ath.gender = val,
+            "birthdate" => ath.birthdate = NaiveDate::parse_from_str(&val, "%Y-%m-%d").ok(),
+            "license" => ath.license = val,
+            "exception" => ath.exception = Some(val),
+            _ => {}
+        }
+    }
+    Some(ath)
 }
 
 pub async fn seed_from_lxf(pool: &PgPool, data: &[u8]) -> Result<SeedResult, String> {

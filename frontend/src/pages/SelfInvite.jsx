@@ -5,6 +5,7 @@ import { useLang } from '../i18n'
 export default function SelfInvite() {
   const { t, lang, toggle } = useLang()
   const [clubs, setClubs] = useState([])
+  const [meetName, setMeetName] = useState('')
   const [selectedClubId, setSelectedClubId] = useState('')
   const [email, setEmail] = useState('')
   const [sending, setSending] = useState(false)
@@ -16,6 +17,10 @@ export default function SelfInvite() {
       .then(r => r.json())
       .then(data => setClubs(data))
       .catch(() => setError('Failed to load clubs'))
+    fetch('/api/meet-info')
+      .then(r => r.json())
+      .then(data => setMeetName(data.meet_name || ''))
+      .catch(() => {})
   }, [])
 
   function handleClubChange(e) {
@@ -59,6 +64,7 @@ export default function SelfInvite() {
             {lang === 'fr' ? 'EN' : 'FR'}
           </button>
         </div>
+        {meetName && <p className="text-sm text-gray-600 mb-4 font-medium">{meetName}</p>}
 
         {clubs.length === 0 && !error && (
           <p className="text-gray-500 text-sm">{t.self_invite_no_clubs}</p>

@@ -60,6 +60,7 @@ class ParsedMeet:
     course: str = ""
     masters: bool = False
     currency: str = ""
+    age_base_date: str = ""  # AGEDATE value from Lenex (YYYY-MM-DD)
     meet_fees: dict[str, int] = field(default_factory=dict)
     sessions: list[MeetSession] = field(default_factory=list)
 
@@ -94,6 +95,9 @@ def parse_meet_lxf(source) -> ParsedMeet:
         meet.meet_name = meet_el.get("name", "")
         meet.course = meet_el.get("course", "")
         meet.masters = meet_el.get("masters", "").upper() == "T"
+        agedate_el = meet_el.find("AGEDATE")
+        if agedate_el is not None:
+            meet.age_base_date = agedate_el.get("value", "")
         for fee_el in meet_el.iterfind("FEES/FEE"):
             ftype = (fee_el.get("type") or "").upper()
             if not ftype:

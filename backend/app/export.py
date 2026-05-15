@@ -43,8 +43,12 @@ def _agegroup_for_code(age_groups, age_code: str, masters: bool):
 def generate_lxf(db: Session) -> bytes:
     """Generate a Lenex 3.0 .lxf zip from all registrations."""
     from .meet_parser import parse_meet_lxf
+    from .models import AppConfig
     meet_path = Path(os.environ.get("MEET_STORAGE", "/app/data/meet.lxf"))
     meet_struct = parse_meet_lxf(meet_path)
+
+    age_base_cfg = db.query(AppConfig).get("age_base_date")
+    age_base_date = age_base_cfg.value if age_base_cfg and age_base_cfg.value else date(date.today().year, 12, 31).isoformat()
 
     regs = db.query(Registration).options(
         joinedload(Registration.athlete).joinedload(Athlete.club),
@@ -68,14 +72,14 @@ def generate_lxf(db: Session) -> bytes:
         "city": "Laval",
         "course": meet_struct.course or "LCM",
     })
-    ET.SubElement(meet, "AGEDATE", value=date(2026, 12, 31).isoformat(), type="DATE")
+    ET.SubElement(meet, "AGEDATE", value=age_base_date, type="DATE")
 
     # Sessions + Events from meet structure (preserves original session/event ids + age groups)
     sessions_xml = ET.SubElement(meet, "SESSIONS")
     for ses in meet_struct.sessions:
         ses_xml = ET.SubElement(sessions_xml, "SESSION", {
             "number": str(ses.number),
-            "date": "2026-12-31",
+            "date": age_base_date,
             "course": meet_struct.course or "LCM",
         })
         evts_xml = ET.SubElement(ses_xml, "EVENTS")

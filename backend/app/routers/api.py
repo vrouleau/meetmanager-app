@@ -258,7 +258,8 @@ async def upload_meet(file: UploadFile = File(...), db: Session = Depends(get_db
                      ("meet_course", meet.course),
                      ("meet_masters", "T" if meet.masters else "F"),
                      ("meet_currency", meet.currency or "CAD"),
-                     ("meet_fees_json", _json.dumps(meet.meet_fees))]:
+                     ("meet_fees_json", _json.dumps(meet.meet_fees)),
+                     ("age_base_date", meet.age_base_date)]:
         cfg = db.query(AppConfig).get(key)
         if cfg:
             cfg.value = val
@@ -829,7 +830,9 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
     suggested_age_code = "Open"
     if athlete.birthdate:
         from datetime import date as d
-        age = d(2026, 12, 31).year - athlete.birthdate.year
+        age_base_cfg = db.query(AppConfig).get("age_base_date")
+        age_base = d.fromisoformat(age_base_cfg.value) if age_base_cfg and age_base_cfg.value else d(d.today().year, 12, 31)
+        age = age_base.year - athlete.birthdate.year
         if age <= 10:
             suggested_age_code = "10-"
         elif 11 <= age <= 12:

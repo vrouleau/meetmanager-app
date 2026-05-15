@@ -142,17 +142,12 @@ export default function Organizer() {
     : 'bg-gray-600 hover:bg-gray-700'
 
   function statusText(c) {
-    if (mode === 'invite') {
-      const parts = []
-      if (c.registered_athlete_count) parts.push(`${c.registered_athlete_count} ${t.athletes_short}`)
-      if (c.total_fees_cents) parts.push(formatMoney(c.total_fees_cents, meetInfo?.currency || 'CAD', lang))
-      if (c.invite_send_count) parts.push(`${c.invite_send_count}× ${t.invited_short}`)
-      return parts.join(' · ') || '—'
-    }
-    if (mode === 'stripe') {
-      return c.stripe_send_count ? `${c.stripe_send_count}× ${t.sent_short}` : '—'
-    }
-    return c.invite_send_count ? `${c.invite_send_count}× ${t.invited_short}` : '—'
+    const parts = []
+    if (c.registered_athlete_count) parts.push(`${c.registered_athlete_count} ${t.athletes_short}`)
+    if (c.total_fees_cents) parts.push(formatMoney(c.total_fees_cents, meetInfo?.currency || 'CAD', lang))
+    if (mode === 'invite' && c.invite_send_count) parts.push(`${c.invite_send_count}× ${t.invited_short}`)
+    if (mode === 'stripe' && c.stripe_send_count) parts.push(`${c.stripe_send_count}× ${t.sent_short}`)
+    return parts.join(' · ') || '—'
   }
 
   return (

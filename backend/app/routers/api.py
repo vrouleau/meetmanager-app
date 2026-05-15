@@ -1,6 +1,7 @@
 """API endpoints."""
 from __future__ import annotations
 
+import logging
 import os
 import secrets
 import string
@@ -23,6 +24,7 @@ from ..export_entries import generate_entries_lxf
 from ..invoices import create_invoice_for_club
 
 router = APIRouter(prefix="/api")
+_audit = logging.getLogger("audit")
 
 MEET_STORAGE = Path(os.environ.get("MEET_STORAGE", "/app/data/meet.lxf"))
 MEET_TEMPLATE = Path(os.environ.get("MEET_TEMPLATE", "/app/templates/meet.smb"))
@@ -210,18 +212,18 @@ def auth(data: dict, request: Request, db: Session = Depends(get_db)):
     pin = data.get("pin", "")
     admin_pin = _get_admin_pin(db)
     if pin == admin_pin:
-        print(f"[LOGIN] admin from {ip}")
+        _audit.info(f"[admin] LOGIN  (ip={ip})")
         return {"role": "admin", "club_id": None, "club_name": "Admin"}
     club = db.query(Club).filter(Club.pin == pin).first()
     if not club:
-        print(f"[LOGIN] FAILED from {ip}")
+        _audit.info(f"[?] LOGIN_FAILED  (ip={ip})")
         raise HTTPException(401, "Invalid PIN")
     # Check if this club is the designated organizer
     org_cfg = db.query(AppConfig).get("organizer_club_id")
     if org_cfg and org_cfg.value == str(club.id):
-        print(f"[LOGIN] organizer club=\"{club.name}\" from {ip}")
+        _audit.info(f"[organizer/{club.name}] LOGIN  (ip={ip})")
         return {"role": "organizer", "club_id": club.id, "club_name": club.name}
-    print(f"[LOGIN] coach club=\"{club.name}\" from {ip}")
+    _audit.info(f"[coach/{club.name}] LOGIN  (ip={ip})")
     return {"role": "coach", "club_id": club.id, "club_name": club.name}
 
 

@@ -146,6 +146,17 @@ pub async fn generate_lxf(pool: &PgPool) -> Result<Vec<u8>, String> {
             ss.push_attribute(("relaycount", ev.relaycount.to_string().as_str()));
             ss.push_attribute(("stroke", "UNKNOWN"));
             writer.write_event(XmlEvent::Empty(ss)).map_err(|e| e.to_string())?;
+            if !ev.agegroups.is_empty() {
+                writer.write_event(XmlEvent::Start(BytesStart::new("AGEGROUPS"))).map_err(|e| e.to_string())?;
+                for ag in &ev.agegroups {
+                    let mut ag_el = BytesStart::new("AGEGROUP");
+                    ag_el.push_attribute(("agegroupid", ag.agegroupid.to_string().as_str()));
+                    ag_el.push_attribute(("agemin", ag.agemin.to_string().as_str()));
+                    ag_el.push_attribute(("agemax", ag.agemax.to_string().as_str()));
+                    writer.write_event(XmlEvent::Empty(ag_el)).map_err(|e| e.to_string())?;
+                }
+                writer.write_event(XmlEvent::End(BytesEnd::new("AGEGROUPS"))).map_err(|e| e.to_string())?;
+            }
             writer.write_event(XmlEvent::End(BytesEnd::new("EVENT"))).map_err(|e| e.to_string())?;
         }
         writer.write_event(XmlEvent::End(BytesEnd::new("EVENTS"))).map_err(|e| e.to_string())?;

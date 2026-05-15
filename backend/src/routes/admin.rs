@@ -119,11 +119,20 @@ async fn get_styles(
     let uids: Vec<(i32,)> = sqlx::query_as("SELECT DISTINCT style_uid FROM best_times")
         .fetch_all(&state.pool).await.unwrap_or_default();
 
+    // Load cached style names
+    let cache: std::collections::HashMap<String, String> = sqlx::query_as::<_, (String,)>(
+        "SELECT value FROM app_config WHERE key = 'style_names_json'"
+    ).fetch_optional(&state.pool).await.unwrap_or(None)
+        .and_then(|r| serde_json::from_str(&r.0).ok())
+        .unwrap_or_default();
+
     let mut result = Vec::new();
     for (uid,) in &uids {
         let name: Option<(Option<String>,)> = sqlx::query_as("SELECT style_name FROM events WHERE style_uid = $1 LIMIT 1")
             .bind(uid).fetch_optional(&state.pool).await.unwrap_or(None);
-        let n = name.and_then(|r| r.0).unwrap_or_else(|| format!("ID{uid}"));
+        let n = name.and_then(|r| r.0)
+            .or_else(|| cache.get(&uid.to_string()).cloned())
+            .unwrap_or_else(|| format!("ID{uid}"));
         result.push(json!({"uid": uid, "name": n}));
     }
     result.sort_by_key(|v| v["uid"].as_i64().unwrap_or(0));

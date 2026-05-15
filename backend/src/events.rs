@@ -1,4 +1,5 @@
 use sqlx::PgPool;
+use serde_json;
 
 use crate::meet_parser::ParsedMeet;
 
@@ -44,6 +45,31 @@ pub async fn load_from_parsed(pool: &PgPool, meet: &ParsedMeet) -> Result<i32, s
         }
         count += 1;
     }
+
+    // Cache style names in app_config so they survive meet flush
+    let mut style_map: std::collections::HashMap<i32, String> = std::collections::HashMap::new();
+    for ev in meet.all_events() {
+        if !ev.style_name.is_empty() {
+            style_map.entry(ev.swimstyleid).or_insert_with(|| ev.style_name.clone());
+        }
+    }
+    if !style_map.is_empty() {
+        // Merge with existing cache
+        let existing: Option<(String,)> = sqlx::query_as(
+            "SELECT value FROM app_config WHERE key = 'style_names_json'"
+        ).fetch_optional(pool).await.unwrap_or(None);
+        let mut merged: std::collections::HashMap<i32, String> = existing
+            .and_then(|r| serde_json::from_str(&r.0).ok())
+            .unwrap_or_default();
+        for (k, v) in style_map {
+            merged.insert(k, v);
+        }
+        let json_str = serde_json::to_string(&merged).unwrap_or_default();
+        sqlx::query(
+            "INSERT INTO app_config (key, value) VALUES ('style_names_json', $1) ON CONFLICT (key) DO UPDATE SET value = $1"
+        ).bind(&json_str).execute(pool).await.ok();
+    }
+
     Ok(count)
 }
 

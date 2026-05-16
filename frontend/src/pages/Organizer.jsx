@@ -19,7 +19,8 @@ export default function Organizer() {
 
   async function loadClubs() {
     const r = await api.get('/clubs')
-    setClubs(r.data)
+    const myId = Number(localStorage.getItem('club_id'))
+    setClubs(r.data.filter(c => c.id !== myId))
   }
 
   async function loadStripeStatus() {
@@ -270,7 +271,7 @@ export default function Organizer() {
                   <td className="p-2"><input type="checkbox" checked={!!checked[c.id]}
                     onChange={e => setChecked(prev => ({...prev, [c.id]: e.target.checked}))} /></td>
                   <td className="p-2">{c.name}</td>
-                  <td className="p-2 text-gray-600">{c.admin_email || <span className="text-red-400">{lang === 'fr' ? 'aucun' : 'none'}</span>}</td>
+                  <td className="p-2 text-gray-600">{c.email || <span className="text-red-400">{lang === 'fr' ? 'aucun' : 'none'}</span>}</td>
                   <td className="p-2 text-gray-600 text-xs">{statusText(c)}</td>
                 </tr>
               ))}

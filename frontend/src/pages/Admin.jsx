@@ -95,7 +95,7 @@ export default function Admin() {
   async function addClub() {
     if (!newClubName.trim() || !newClubCode.trim()) return
     try {
-      await api.post('/clubs', { name: newClubName.trim(), code: newClubCode.trim() || undefined, admin_email: newClubEmail.trim() || undefined })
+      await api.post('/clubs', { name: newClubName.trim(), code: newClubCode.trim() || undefined, email: newClubEmail.trim() || undefined })
       setNewClubName('')
       setNewClubCode('')
       setNewClubEmail('')
@@ -119,7 +119,7 @@ export default function Admin() {
   }
 
   async function updateEmail(club, email) {
-    await api.put(`/clubs/${club.id}`, { admin_email: email })
+    await api.put(`/clubs/${club.id}`, { email: email })
     loadClubs()
   }
 
@@ -251,9 +251,9 @@ export default function Admin() {
                     <td className="p-2 text-xs text-gray-500">{c.code || '—'}</td>
                     <td className="p-2">
                       <input type="email" className="border p-1 rounded w-full text-sm"
-                        defaultValue={c.admin_email}
+                        defaultValue={c.email}
                         onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
-                        onBlur={e => { if (e.target.value !== c.admin_email) updateEmail(c, e.target.value) }}
+                        onBlur={e => { if (e.target.value !== c.email) updateEmail(c, e.target.value) }}
                         placeholder="email@example.com" />
                     </td>
                     <td className="p-2 text-center">

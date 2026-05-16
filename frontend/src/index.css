@@ -36,9 +36,5 @@
     transform: rotate(180deg);
     white-space: nowrap;
     display: inline-block;
-    max-height: 6rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 0.65rem;
   }
 }

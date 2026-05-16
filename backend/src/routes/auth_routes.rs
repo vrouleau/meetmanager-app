@@ -141,12 +141,12 @@ async fn self_invite_clubs(
 async fn self_invite(
     State(state): State<AppState>,
     Json(data): Json<Value>,
-) -> Result<Json<Value>, (StatusCode, String)> {
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let club_id = data["club_id"].as_i64()
-        .ok_or((StatusCode::BAD_REQUEST, "club_id required".to_string()))?;
+        .ok_or((StatusCode::BAD_REQUEST, Json(json!({"detail": "club_id required"}))))?;
     let email = data["email"].as_str().unwrap_or("").trim().to_string();
     if email.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "email required".to_string()));
+        return Err((StatusCode::BAD_REQUEST, Json(json!({"detail": "email required"}))));
     }
 
     let club: Option<(i32, Option<String>)> = sqlx::query_as(
@@ -155,21 +155,21 @@ async fn self_invite(
     .bind(club_id as i32)
     .fetch_optional(&state.pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"detail": e.to_string()}))))?;
 
-    let (cid, club_email) = club.ok_or((StatusCode::NOT_FOUND, "Club not found".to_string()))?;
+    let (cid, club_email) = club.ok_or((StatusCode::NOT_FOUND, Json(json!({"detail": "Club not found"}))))?;
     let stored_email = club_email.unwrap_or_default();
     if stored_email.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "No admin email set for this club".to_string()));
+        return Err((StatusCode::BAD_REQUEST, Json(json!({"detail": "No email set for this club"}))));
     }
     if email.to_lowercase() != stored_email.to_lowercase() {
-        return Err((StatusCode::FORBIDDEN, "Email does not match".to_string()));
+        return Err((StatusCode::FORBIDDEN, Json(json!({"detail": "email_mismatch"}))));
     }
 
     // Trigger the same send-pin flow
     let resend_key = std::env::var("RESEND_API_KEY").unwrap_or_default();
     if resend_key.is_empty() {
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, "RESEND_API_KEY not configured".to_string()));
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"detail": "RESEND_API_KEY not configured"}))));
     }
 
     // Reuse the send-pin logic by calling it internally would be complex,

@@ -11,6 +11,7 @@ import Organizer from './pages/Organizer'
 import DataManagement from './pages/DataManagement'
 import Secret from './pages/Secret'
 import SelfInvite from './pages/SelfInvite'
+import BestTimesPublic from './pages/BestTimesPublic'
 import Workflow from './pages/Workflow'
 import Footer from './Footer'
 
@@ -46,6 +47,7 @@ function AppInner() {
       <Routes>
         <Route path="/secret/:token" element={<Secret />} />
         <Route path="/self-invite" element={<SelfInvite />} />
+        <Route path="/best-times" element={<BestTimesPublic />} />
         <Route path="/usage" element={<Workflow />} />
         <Route path="*" element={<Login onLogin={setAuth} />} />
       </Routes>

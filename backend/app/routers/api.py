@@ -1591,3 +1591,68 @@ def merge_styles(data: dict, db: Session = Depends(get_db)):
 
     db.commit()
     return {"merged_rows": merged_rows}
+
+
+@router.post("/best-times-public")
+def best_times_public(data: dict, request: Request, db: Session = Depends(get_db)):
+    """Public: return all best times grouped by club with style columns. Optional CAPTCHA gate."""
+    import httpx
+    import json as _json
+
+    turnstile_secret = os.environ.get("TURNSTILE_SECRET_KEY", "")
+    if turnstile_secret:
+        captcha_token = data.get("captcha_token", "")
+        if not captcha_token:
+            raise HTTPException(400, "CAPTCHA required")
+        ip = request.client.host if request.client else ""
+        resp = httpx.post("https://challenges.cloudflare.com/turnstile/v0/siteverify", data={
+            "secret": turnstile_secret,
+            "response": captcha_token,
+            "remoteip": ip,
+        }, timeout=5)
+        if not resp.json().get("success"):
+            raise HTTPException(400, "CAPTCHA validation failed")
+
+    # Gather style names
+    cfg = db.query(AppConfig).get("style_names_json")
+    imported_names: dict[int, str] = {int(k): v for k, v in _json.loads(cfg.value).items()} if cfg else {}
+
+    # All best times with athlete+club eager loaded
+    all_bt = db.query(BestTime).join(Athlete).join(Club).options(
+        joinedload(BestTime.athlete).joinedload(Athlete.club)
+    ).all()
+
+    # Collect unique styles
+    style_uids = sorted(set(b.style_uid for b in all_bt))
+    styles = []
+    for uid in style_uids:
+        ev = db.query(Event).filter(Event.style_uid == uid).first()
+        name = ev.style_name if ev else imported_names.get(uid, f"ID{uid}")
+        styles.append({"uid": uid, "name": name})
+
+    # Group by club then athlete
+    clubs_map: dict[int, dict] = {}
+    for bt in all_bt:
+        a = bt.athlete
+        c = a.club
+        if c.id not in clubs_map:
+            clubs_map[c.id] = {"name": c.name, "athletes": {}}
+        if a.id not in clubs_map[c.id]["athletes"]:
+            clubs_map[c.id]["athletes"][a.id] = {
+                "name": f"{a.last_name}, {a.first_name}",
+                "times": {},
+            }
+        key = f"{bt.style_uid}_{bt.course}"
+        existing = clubs_map[c.id]["athletes"][a.id]["times"].get(key)
+        if not existing or bt.time_ms < existing:
+            clubs_map[c.id]["athletes"][a.id]["times"][key] = bt.time_ms
+
+    # Build response
+    clubs_list = []
+    for cid in sorted(clubs_map, key=lambda x: clubs_map[x]["name"]):
+        cm = clubs_map[cid]
+        athletes = sorted(cm["athletes"].values(), key=lambda a: a["name"])
+        clubs_list.append({"name": cm["name"], "athletes": athletes})
+
+    course = db.query(AppConfig).get("meet_course")
+    return {"styles": styles, "clubs": clubs_list, "course": course.value if course else "LCM"}

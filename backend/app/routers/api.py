@@ -465,12 +465,14 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
     org_cfg = db.query(AppConfig).get("organizer_club_id")
     is_organizer = org_cfg and str(club.id) == str(org_cfg.value)
 
-    # Organizer email for coach contact note
+    # Organizer info for coach contact note
     org_email = ""
+    org_club_name = ""
     if not is_organizer and org_cfg:
         org_club = db.query(Club).get(int(org_cfg.value))
         if org_club:
             org_email = org_club.admin_email or ""
+            org_club_name = org_club.name or ""
 
     support_email = os.environ.get("SUPPORT_EMAIL", "")
 
@@ -489,7 +491,7 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
         if lang == "fr":
             lines = []
             if org_email:
-                lines.append(f"Pour toute question sur la compétition, contactez l'organisateur : "
+                lines.append(f"Pour toute question sur la compétition, contactez l'organisateur ({org_club_name}) : "
                              f"<a href=\"mailto:{org_email}\">{org_email}</a>")
             if support_email:
                 lines.append(f"Pour de l'aide avec le portail d'inscription, contactez le support : "
@@ -499,7 +501,7 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
         else:
             lines = []
             if org_email:
-                lines.append(f"If you have questions about the meet, contact the organizer: "
+                lines.append(f"If you have questions about the meet, contact the organizer ({org_club_name}): "
                              f"<a href=\"mailto:{org_email}\">{org_email}</a>")
             if support_email:
                 lines.append(f"For help with the registration portal, contact support: "
@@ -519,7 +521,8 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
                     f"Après cette date, vous ne pourrez plus accéder au portail d'inscription.</p>") if closure_date else ""
         html = (f"<p>Bonjour,</p>"
                 f"<p>Vous êtes invité(e) à inscrire les athlètes de votre équipe "
-                f"<strong>{club.name}</strong> à la compétition <strong>{meet_name}</strong>.</p>"
+                f"<strong>{club.name}</strong> à la compétition <strong>{meet_name}</strong>"
+                f"{f', organisée par <strong>{org_club_name}</strong>' if org_club_name else ''}.</p>"
                 f"{deadline}"
                 f"<p><strong>Marche à suivre :</strong></p>"
                 f"<ol>"
@@ -541,7 +544,8 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
                     f"After this date, you will no longer be able to access the registration portal.</p>") if closure_date else ""
         html = (f"<p>Hello,</p>"
                 f"<p>You are invited to register the athletes of your team "
-                f"<strong>{club.name}</strong> for <strong>{meet_name}</strong>.</p>"
+                f"<strong>{club.name}</strong> for <strong>{meet_name}</strong>"
+                f"{f', organized by <strong>{org_club_name}</strong>' if org_club_name else ''}.</p>"
                 f"{deadline}"
                 f"<p><strong>How to proceed:</strong></p>"
                 f"<ol>"

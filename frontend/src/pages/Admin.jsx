@@ -188,7 +188,20 @@ export default function Admin() {
           {organizer?.club_name && (
             <p className="text-sm mb-2 text-purple-700 font-medium">
               {t.currently_organized_by} <strong>{organizer.club_name}</strong>
+              {(() => { const c = clubs.find(c => c.id === organizer.club_id); return c ? ` (${c.invite_send_count || 0} invite${(c.invite_send_count || 0) !== 1 ? 's' : ''} sent)` : '' })()}
             </p>
+          )}
+          {organizer?.club_id && (
+            <button className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-600/85 mb-2"
+              onClick={async () => {
+                try {
+                  await api.post(`/clubs/${organizer.club_id}/send-pin`, { lang })
+                  setMsg(`${t.send_invitation}: ${organizer.club_name} ✓`)
+                  loadClubs()
+                } catch (e) { setMsg(e.response?.data?.detail || e.message || 'Error') }
+              }}>
+              {t.send_invitation}
+            </button>
           )}
           {clubs.length > 0 && (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

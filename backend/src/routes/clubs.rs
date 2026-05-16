@@ -89,7 +89,10 @@ async fn create_club(
     if name.is_empty() {
         return Err((StatusCode::UNPROCESSABLE_ENTITY, "name required".to_string()));
     }
-    let code = data["code"].as_str().unwrap_or("");
+    let code = data["code"].as_str().unwrap_or("").trim();
+    if code.is_empty() {
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, "code required".to_string()));
+    }
     let nation = data["nation"].as_str().unwrap_or("CAN");
     let new_pin = data["pin"].as_str().map(|s| s.to_string()).unwrap_or_else(|| generate_pin());
 

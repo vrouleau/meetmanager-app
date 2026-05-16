@@ -36,7 +36,7 @@ async fn meet_info(
     State(state): State<AppState>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let keys = ["meet_filename", "meet_uploaded_at", "meet_name", "meet_course",
-                "meet_masters", "closure_date", "meet_currency", "meet_fees_json"];
+                "meet_masters", "closure_date", "meet_currency", "meet_fees_json", "age_base_date"];
     let mut config: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
     for key in keys {

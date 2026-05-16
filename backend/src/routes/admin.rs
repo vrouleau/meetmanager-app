@@ -63,6 +63,10 @@ async fn set_organizer(
         .bind(club_id.to_string()).execute(&state.pool).await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Reset invite counts — new organizer hasn't sent any yet
+    sqlx::query("UPDATE clubs SET invite_send_count = 0")
+        .execute(&state.pool).await.ok();
+
     Ok(Json(json!({"ok": true, "organizer_club_id": club_id})))
 }
 

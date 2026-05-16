@@ -28,7 +28,7 @@ async fn list_clubs(
     let role = resolve_role(pin, &state.pool).await;
 
     let clubs: Vec<(i32, String, Option<String>, Option<String>, Option<String>, i32, i32)> =
-        sqlx::query_as("SELECT id, name, code, pin, admin_email, invite_send_count, stripe_send_count FROM clubs ORDER BY name")
+        sqlx::query_as("SELECT id, name, code, pin, email, invite_send_count, stripe_send_count FROM clubs ORDER BY name")
             .fetch_all(&state.pool)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -66,7 +66,7 @@ async fn list_clubs(
         });
 
         if role.is_admin_or_organizer() {
-            item["admin_email"] = json!(c.4.as_deref().unwrap_or(""));
+            item["email"] = json!(c.4.as_deref().unwrap_or(""));
         }
         if role.is_admin() {
             item["pin"] = json!(c.3);
@@ -150,8 +150,8 @@ async fn update_club(
     let pin = headers.get("x-club-pin").and_then(|v| v.to_str().ok()).unwrap_or("");
     require_admin(&state, pin).await.map_err(|(s, m)| (s, m.to_string()))?;
 
-    if let Some(email) = data["admin_email"].as_str() {
-        sqlx::query("UPDATE clubs SET admin_email = $1 WHERE id = $2")
+    if let Some(email) = data["email"].as_str() {
+        sqlx::query("UPDATE clubs SET email = $1 WHERE id = $2")
             .bind(email)
             .bind(club_id)
             .execute(&state.pool)
@@ -215,7 +215,7 @@ async fn send_pin(
     crate::auth::require_organizer_or_admin(&state, pin).await.map_err(|(s, m)| (s, m.to_string()))?;
 
     let club: Option<(i32, String, Option<String>, Option<String>)> =
-        sqlx::query_as("SELECT id, name, pin, admin_email FROM clubs WHERE id = $1")
+        sqlx::query_as("SELECT id, name, pin, email FROM clubs WHERE id = $1")
             .bind(club_id)
             .fetch_optional(&state.pool)
             .await
@@ -223,9 +223,9 @@ async fn send_pin(
     let club = club.ok_or((StatusCode::NOT_FOUND, "Club not found".to_string()))?;
     let club_name = &club.1;
     let club_pin = club.2.as_deref().unwrap_or("");
-    let admin_email = club.3.as_deref().unwrap_or("");
-    if admin_email.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "No admin email set for this club".to_string()));
+    let club_email = club.3.as_deref().unwrap_or("");
+    if club_email.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "No email set for this club".to_string()));
     }
 
     let lang = data["lang"].as_str().unwrap_or("fr");
@@ -287,7 +287,7 @@ async fn send_pin(
         if let Some(ref oid) = org_club_id {
             if let Ok(oid_int) = oid.parse::<i32>() {
                 let row: Option<(String, Option<String>)> = sqlx::query_as(
-                    "SELECT name, admin_email FROM clubs WHERE id = $1"
+                    "SELECT name, email FROM clubs WHERE id = $1"
                 ).bind(oid_int).fetch_optional(&state.pool).await.unwrap_or(None);
                 match row {
                     Some((name, email)) => (email.unwrap_or_default(), name),
@@ -392,7 +392,7 @@ async fn send_pin(
         .header("Authorization", format!("Bearer {}", resend_key))
         .json(&json!({
             "from": from_email,
-            "to": [admin_email],
+            "to": [club_email],
             "subject": subject,
             "html": html,
         }))
@@ -411,7 +411,7 @@ async fn send_pin(
         .await
         .ok();
 
-    Ok(Json(json!({"message": format!("Email sent to {}", admin_email)})))
+    Ok(Json(json!({"message": format!("Email sent to {}", club_email)})))
 }
 
 fn generate_pin() -> String {

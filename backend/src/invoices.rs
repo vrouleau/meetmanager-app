@@ -160,7 +160,7 @@ pub async fn create_stripe_invoice(
     }
 
     let club_name: Option<(String, Option<String>)> =
-        sqlx::query_as("SELECT name, admin_email FROM clubs WHERE id = $1")
+        sqlx::query_as("SELECT name, email FROM clubs WHERE id = $1")
             .bind(club_id)
             .fetch_optional(pool)
             .await

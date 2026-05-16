@@ -128,7 +128,7 @@ async fn self_invite_clubs(
     State(state): State<AppState>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let clubs: Vec<(i32, String)> = sqlx::query_as(
-        "SELECT id, name FROM clubs WHERE admin_email IS NOT NULL AND admin_email != '' ORDER BY name"
+        "SELECT id, name FROM clubs WHERE email IS NOT NULL AND email != '' ORDER BY name"
     )
     .fetch_all(&state.pool)
     .await
@@ -150,15 +150,15 @@ async fn self_invite(
     }
 
     let club: Option<(i32, Option<String>)> = sqlx::query_as(
-        "SELECT id, admin_email FROM clubs WHERE id = $1"
+        "SELECT id, email FROM clubs WHERE id = $1"
     )
     .bind(club_id as i32)
     .fetch_optional(&state.pool)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let (cid, admin_email) = club.ok_or((StatusCode::NOT_FOUND, "Club not found".to_string()))?;
-    let stored_email = admin_email.unwrap_or_default();
+    let (cid, club_email) = club.ok_or((StatusCode::NOT_FOUND, "Club not found".to_string()))?;
+    let stored_email = club_email.unwrap_or_default();
     if stored_email.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "No admin email set for this club".to_string()));
     }

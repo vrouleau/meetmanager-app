@@ -198,7 +198,7 @@ pub async fn seed_from_lxf(pool: &PgPool, data: &[u8]) -> Result<SeedResult, Str
                         .await
                         .map_err(|e| e.to_string())?;
                     if !cd.email.is_empty() {
-                        sqlx::query("UPDATE clubs SET admin_email = COALESCE(admin_email, $1) WHERE id = $2")
+                        sqlx::query("UPDATE clubs SET email = COALESCE(email, $1) WHERE id = $2")
                             .bind(&cd.email)
                             .bind(id)
                             .execute(pool)
@@ -211,7 +211,7 @@ pub async fn seed_from_lxf(pool: &PgPool, data: &[u8]) -> Result<SeedResult, Str
                     let pin = generate_pin();
                     let email: Option<&str> = if cd.email.is_empty() { None } else { Some(&cd.email) };
                     let row: (i32,) = sqlx::query_as(
-                        "INSERT INTO clubs (name, code, nation, pin, admin_email) VALUES ($1, $2, $3, $4, $5) RETURNING id"
+                        "INSERT INTO clubs (name, code, nation, pin, email) VALUES ($1, $2, $3, $4, $5) RETURNING id"
                     )
                     .bind(&cd.name)
                     .bind(&cd.code)

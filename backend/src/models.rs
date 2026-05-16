@@ -16,7 +16,7 @@ pub struct Club {
     pub code: Option<String>,
     pub nation: Option<String>,
     pub pin: Option<String>,
-    pub admin_email: Option<String>,
+    pub email: Option<String>,
     pub stripe_account_id: Option<String>,
     pub invite_send_count: i32,
     pub stripe_send_count: i32,

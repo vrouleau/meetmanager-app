@@ -25,7 +25,7 @@ pub async fn run_migrations(pool: &PgPool) {
             code VARCHAR(20) UNIQUE,
             nation VARCHAR(3),
             pin VARCHAR(6),
-            admin_email VARCHAR(200),
+            email VARCHAR(200),
             stripe_account_id VARCHAR(100),
             invite_send_count INTEGER NOT NULL DEFAULT 0,
             stripe_send_count INTEGER NOT NULL DEFAULT 0

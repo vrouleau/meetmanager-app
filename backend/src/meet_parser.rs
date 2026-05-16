@@ -58,6 +58,7 @@ pub struct ParsedMeet {
     pub course: String,
     pub masters: bool,
     pub currency: String,
+    pub age_base_date: String,
     pub meet_fees: HashMap<String, i32>,
     pub sessions: Vec<MeetSession>,
 }
@@ -120,6 +121,15 @@ fn parse_meet_xml(xml: &[u8]) -> Result<ParsedMeet, String> {
                                 "course" => meet.course = val,
                                 "masters" => meet.masters = val.to_uppercase() == "T",
                                 _ => {}
+                            }
+                        }
+                    }
+                    "AGEDATE" => {
+                        for attr in e.attributes().flatten() {
+                            let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                            let val = String::from_utf8_lossy(&attr.value).to_string();
+                            if key == "value" {
+                                meet.age_base_date = val;
                             }
                         }
                     }

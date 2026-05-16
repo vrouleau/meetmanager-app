@@ -73,6 +73,7 @@ async fn upload_meet(
         ("meet_masters", if meet.masters { "T" } else { "F" }),
         ("meet_currency", &meet.currency),
         ("meet_fees_json", &fees_json),
+        ("age_base_date", &meet.age_base_date),
     ] {
         sqlx::query("INSERT INTO app_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2")
             .bind(key).bind(val).execute(&state.pool).await.ok();

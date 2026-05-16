@@ -26,6 +26,11 @@ pub async fn generate_lxf(pool: &PgPool) -> Result<Vec<u8>, String> {
     let meet_data = std::fs::read(&meet_storage).map_err(|e| format!("Cannot read meet file: {e}"))?;
     let meet = parse_meet_lxf(&meet_data)?;
 
+    // Get age_base_date from app_config
+    let age_base_date: String = sqlx::query_scalar("SELECT value FROM app_config WHERE key = 'age_base_date'")
+        .fetch_optional(pool).await.map_err(|e| e.to_string())?
+        .unwrap_or_else(|| chrono::Utc::now().format("%Y-12-31").to_string());
+
     // Fetch registrations with joins
     let rows: Vec<(i32, i32, String, Option<i32>, i32, String, String, String, Option<chrono::NaiveDate>, Option<String>, Option<String>, i32, i32, Option<String>, Option<String>, Option<i32>)> = sqlx::query_as(
         r#"SELECT r.id, r.athlete_id, r.age_code, r.entry_time_ms,
@@ -126,11 +131,18 @@ pub async fn generate_lxf(pool: &PgPool) -> Result<Vec<u8>, String> {
     meet_el.push_attribute(("course", meet.course.as_str()));
     writer.write_event(XmlEvent::Start(meet_el)).map_err(|e| e.to_string())?;
 
+    // AGEDATE element
+    let mut agedate_el = BytesStart::new("AGEDATE");
+    agedate_el.push_attribute(("value", age_base_date.as_str()));
+    agedate_el.push_attribute(("type", "DATE"));
+    writer.write_event(XmlEvent::Empty(agedate_el)).map_err(|e| e.to_string())?;
+
     // Sessions from meet structure
     writer.write_event(XmlEvent::Start(BytesStart::new("SESSIONS"))).map_err(|e| e.to_string())?;
     for ses in &meet.sessions {
         let mut ses_el = BytesStart::new("SESSION");
         ses_el.push_attribute(("number", ses.number.to_string().as_str()));
+        ses_el.push_attribute(("date", age_base_date.as_str()));
         ses_el.push_attribute(("course", meet.course.as_str()));
         writer.write_event(XmlEvent::Start(ses_el)).map_err(|e| e.to_string())?;
         writer.write_event(XmlEvent::Start(BytesStart::new("EVENTS"))).map_err(|e| e.to_string())?;

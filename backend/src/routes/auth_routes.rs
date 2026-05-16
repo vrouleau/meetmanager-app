@@ -1,5 +1,5 @@
 use axum::{
-    extract::{ConnectInfo, State},
+    extract::{ConnectInfo, Path, State},
     http::StatusCode,
     routing::post,
     Json, Router,
@@ -11,7 +11,9 @@ use crate::auth::{get_admin_pin, resolve_role, Role};
 use crate::state::AppState;
 
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/api/auth", post(auth))
+    Router::new()
+        .route("/api/auth", post(auth))
+        .route("/api/secret/:token", post(reveal_secret))
 }
 
 async fn auth(
@@ -57,4 +59,65 @@ async fn auth(
     };
 
     Ok(Json(json!({"role": role, "club_id": club_id, "club_name": club_name})))
+}
+
+async fn reveal_secret(
+    State(state): State<AppState>,
+    Path(token): Path<String>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    let row: Option<(i32, String, i32, bool, chrono::NaiveDateTime)> = sqlx::query_as(
+        "SELECT id, pin_encrypted, club_id, viewed, expires_at FROM secret_links WHERE token = $1"
+    )
+    .bind(&token)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let (link_id, pin_encrypted, club_id, viewed, expires_at) = row
+        .ok_or((StatusCode::NOT_FOUND, "Link invalid or expired".to_string()))?;
+
+    if viewed {
+        return Err((StatusCode::GONE, "Link already used".to_string()));
+    }
+    if chrono::Utc::now().naive_utc() > expires_at {
+        return Err((StatusCode::GONE, "Link expired".to_string()));
+    }
+
+    // Decrypt PIN
+    use sha2::{Sha256, Digest};
+    use base64::Engine;
+    use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
+    use aes_gcm::Nonce;
+
+    let secret_key = std::env::var("SECRET_KEY").unwrap_or_default();
+    let hash = Sha256::digest(secret_key.as_bytes());
+    let cipher = Aes256Gcm::new_from_slice(&hash)
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Decryption error".to_string()))?;
+    let combined = base64::engine::general_purpose::URL_SAFE.decode(&pin_encrypted)
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Decryption error".to_string()))?;
+    if combined.len() < 12 {
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, "Decryption error".to_string()));
+    }
+    let (nonce_bytes, ciphertext) = combined.split_at(12);
+    let nonce = Nonce::from_slice(nonce_bytes);
+    let pin_bytes = cipher.decrypt(nonce, ciphertext)
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Decryption error".to_string()))?;
+    let pin = String::from_utf8(pin_bytes)
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Decryption error".to_string()))?;
+
+    // Mark as viewed
+    sqlx::query("UPDATE secret_links SET viewed = TRUE WHERE id = $1")
+        .bind(link_id)
+        .execute(&state.pool)
+        .await
+        .ok();
+
+    // Get club name
+    let club_name: Option<String> = sqlx::query_scalar("SELECT name FROM clubs WHERE id = $1")
+        .bind(club_id)
+        .fetch_optional(&state.pool)
+        .await
+        .unwrap_or(None);
+
+    Ok(Json(json!({"pin": pin, "club": club_name.unwrap_or_default()})))
 }

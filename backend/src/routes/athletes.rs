@@ -271,8 +271,14 @@ async fn get_registration(
     }
 
     // Suggested age code
+    let age_base_row: Option<(Option<String>,)> = sqlx::query_as("SELECT value FROM app_config WHERE key = 'age_base_date'")
+        .fetch_optional(&state.pool).await.unwrap_or(None);
+    let age_base_year = age_base_row
+        .and_then(|r| r.0)
+        .and_then(|v| v.get(..4).and_then(|y| y.parse::<i32>().ok()))
+        .unwrap_or(chrono::Utc::now().naive_utc().date().year());
     let suggested = if let Some(bd) = ath.4 {
-        let age = 2026 - bd.year();
+        let age = age_base_year - bd.year();
         match age {
             ..=10 => "10-",
             11..=12 => "11-12",

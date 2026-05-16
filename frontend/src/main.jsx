@@ -15,9 +15,29 @@ import BestTimesPublic from './pages/BestTimesPublic'
 import Workflow from './pages/Workflow'
 import Footer from './Footer'
 
-function AuthFooter({ canOrganizer }) {
+function AuthLayout({ children, canOrganizer, canAdmin, meetName, toggle, lang, logout, auth, t }) {
   const location = useLocation()
-  return <Footer showUsage={canOrganizer && location.pathname === '/organizer'} />
+  const standalone = location.pathname === '/best-times'
+  if (standalone) return children
+  return (
+    <>
+      <nav className="bg-gray-800 text-white p-3 flex gap-4 items-center">
+        <Link to="/" className="hover:underline">{t.athletes}</Link>
+        {canOrganizer && <Link to="/organizer" className="hover:underline">{t.organizer}</Link>}
+        {canAdmin && <Link to="/admin" className="hover:underline">{t.admin}</Link>}
+        {canAdmin && <Link to="/data-management" className="hover:underline">{t.data_management}</Link>}
+        <div className="flex-1" />
+        {meetName && <span className="font-semibold bg-blue-600 px-2 py-1 rounded text-sm">{meetName}</span>}
+        <button onClick={toggle} className="text-xs bg-gray-600 px-2 py-1 rounded">
+          {lang === 'fr' ? 'EN' : 'FR'}
+        </button>
+        <span className="text-sm text-gray-300">{auth.club_name}</span>
+        <button onClick={logout} className="text-sm text-red-300 hover:underline">{t.logout}</button>
+      </nav>
+      {children}
+      <Footer showUsage={canOrganizer && location.pathname === '/organizer'} />
+    </>
+  )
 }
 
 function AppInner() {
@@ -60,29 +80,18 @@ function AppInner() {
 
   return (
     <BrowserRouter>
-      <nav className="bg-gray-800 text-white p-3 flex gap-4 items-center">
-        <Link to="/" className="hover:underline">{t.athletes}</Link>
-        {canOrganizer && <Link to="/organizer" className="hover:underline">{t.organizer}</Link>}
-        {canAdmin && <Link to="/admin" className="hover:underline">{t.admin}</Link>}
-        {canAdmin && <Link to="/data-management" className="hover:underline">{t.data_management}</Link>}
-        <div className="flex-1" />
-        {meetName && <span className="font-semibold bg-blue-600 px-2 py-1 rounded text-sm">{meetName}</span>}
-        <button onClick={toggle} className="text-xs bg-gray-600 px-2 py-1 rounded">
-          {lang === 'fr' ? 'EN' : 'FR'}
-        </button>
-        <span className="text-sm text-gray-300">{auth.club_name}</span>
-        <button onClick={logout} className="text-sm text-red-300 hover:underline">{t.logout}</button>
-      </nav>
-      <Routes>
-        <Route path="/" element={<Athletes role={auth.role} clubId={auth.club_id} />} />
-        <Route path="/athletes/:id/register" element={<Register />} />
-        {canOrganizer && <Route path="/organizer" element={<Organizer />} />}
-        {canAdmin && <Route path="/admin" element={<Admin />} />}
-        {canAdmin && <Route path="/data-management" element={<DataManagement />} />}
-        <Route path="/secret/:token" element={<Secret />} />
-        <Route path="/usage" element={<Workflow />} />
-      </Routes>
-      <AuthFooter canOrganizer={canOrganizer} />
+      <AuthLayout canOrganizer={canOrganizer} canAdmin={canAdmin} meetName={meetName} toggle={toggle} lang={lang} logout={logout} auth={auth} t={t}>
+        <Routes>
+          <Route path="/" element={<Athletes role={auth.role} clubId={auth.club_id} />} />
+          <Route path="/athletes/:id/register" element={<Register />} />
+          {canOrganizer && <Route path="/organizer" element={<Organizer />} />}
+          {canAdmin && <Route path="/admin" element={<Admin />} />}
+          {canAdmin && <Route path="/data-management" element={<DataManagement />} />}
+          <Route path="/secret/:token" element={<Secret />} />
+          <Route path="/best-times" element={<BestTimesPublic />} />
+          <Route path="/usage" element={<Workflow />} />
+        </Routes>
+      </AuthLayout>
     </BrowserRouter>
   )
 }

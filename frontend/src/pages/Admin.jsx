@@ -9,6 +9,7 @@ export default function Admin() {
   const [selectedClubId, setSelectedClubId] = useState('')
   const [organizer, setOrganizer] = useState(null)
   const [newClubName, setNewClubName] = useState('')
+  const [newClubCode, setNewClubCode] = useState('')
   const [newClubEmail, setNewClubEmail] = useState('')
   const [msg, setMsg] = useState('')
   const { t, lang } = useLang()
@@ -92,10 +93,11 @@ export default function Admin() {
 
 
   async function addClub() {
-    if (!newClubName.trim()) return
+    if (!newClubName.trim() || !newClubCode.trim()) return
     try {
-      await api.post('/clubs', { name: newClubName.trim(), admin_email: newClubEmail.trim() || undefined })
+      await api.post('/clubs', { name: newClubName.trim(), code: newClubCode.trim() || undefined, admin_email: newClubEmail.trim() || undefined })
       setNewClubName('')
+      setNewClubCode('')
       setNewClubEmail('')
       loadClubs()
       loadStatus()
@@ -238,6 +240,7 @@ export default function Admin() {
             <table className="w-full text-sm">
               <thead><tr className="border-b bg-gray-50">
                 <th className="p-2 text-left">{t.club}</th>
+                <th className="p-2 text-left">Code</th>
                 <th className="p-2 text-left">Email</th>
                 <th className="p-2 w-20"></th>
               </tr></thead>
@@ -245,6 +248,7 @@ export default function Admin() {
                 {clubs.map(c => (
                   <tr key={c.id} className="border-b hover:bg-gray-50">
                     <td className="p-2">{c.name} <span className="text-xs text-gray-400">({c.athlete_count}, PIN: {c.pin || '—'})</span></td>
+                    <td className="p-2 text-xs text-gray-500">{c.code || '—'}</td>
                     <td className="p-2">
                       <input type="email" className="border p-1 rounded w-full text-sm"
                         defaultValue={c.admin_email}
@@ -266,6 +270,8 @@ export default function Admin() {
           <div className="flex gap-2">
             <input type="text" className="border p-2 rounded flex-1" placeholder={t.club_name_placeholder}
               value={newClubName} onChange={e => setNewClubName(e.target.value)} />
+            <input type="text" className="border p-2 rounded w-24" placeholder="Code"
+              value={newClubCode} onChange={e => setNewClubCode(e.target.value)} />
             <input type="email" className="border p-2 rounded flex-1" placeholder="Email"
               value={newClubEmail} onChange={e => setNewClubEmail(e.target.value)} />
             <button onClick={addClub} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-600/85">

@@ -143,7 +143,7 @@ def _club_line_items(db: Session, club: Club, meet_fees: dict[str, int]) -> list
 
 
 def _find_or_create_customer(club: Club) -> stripe.Customer:
-    email = (club.admin_email or "").strip()
+    email = (club.email or "").strip()
     if email:
         existing = stripe.Customer.list(email=email, limit=1)
         if existing.data:
@@ -289,8 +289,8 @@ def generate_invoice_pdf(db: Session, club_id: int) -> bytes:
 
     # Bill-to
     bill_to = [Paragraph("FACTURÉ À / BILLED TO", label), Paragraph(f"<b>{club.name}</b>", body_b)]
-    if club.admin_email:
-        bill_to.append(Paragraph(club.admin_email, body))
+    if club.email:
+        bill_to.append(Paragraph(club.email, body))
     meta = [Paragraph("N° / NO.", label), Paragraph(invoice_no, body), Spacer(1,4),
             Paragraph("DATE", label), Paragraph(issue_date.strftime("%Y-%m-%d"), body)]
     meta_block = Table([[bill_to, meta]], colWidths=[4.5*inch, 2.5*inch])

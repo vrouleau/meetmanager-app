@@ -73,8 +73,8 @@ def generate_entries_lxf(db: Session) -> bytes:
             "code": club.code or "",
             "nation": club.nation or "",
         })
-        if club.admin_email:
-            ET.SubElement(club_xml, "CONTACT", {"email": club.admin_email})
+        if club.email:
+            ET.SubElement(club_xml, "CONTACT", {"email": club.email})
         athletes_xml = ET.SubElement(club_xml, "ATHLETES")
         for ath in club.athletes:
             ath_xml = ET.SubElement(athletes_xml, "ATHLETE", {

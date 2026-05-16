@@ -856,9 +856,10 @@ class TestSelfInvite:
         r.raise_for_status()
         clubs = r.json()
         assert isinstance(clubs, list)
-        # Should not expose admin_email
+        # Should not expose email
         for c in clubs:
             assert "admin_email" not in c
+            assert "email" not in c
             assert "id" in c
             assert "name" in c
 
@@ -873,9 +874,9 @@ class TestSelfInvite:
         assert r.status_code == 400
 
     def test_self_invite_wrong_email_returns_403(self, clubs, admin_headers):
-        # Set admin_email on the club so the email mismatch path is reachable
+        # Set email on the club so the email mismatch path is reachable
         r = requests.put(f"{BASE_URL}/api/clubs/{clubs[0]['id']}",
-                         json={"admin_email": "real@example.com"},
+                         json={"email": "real@example.com"},
                          headers=admin_headers, timeout=5)
         r.raise_for_status()
 
@@ -892,7 +893,7 @@ class TestSelfInvite:
 
         # Clean up
         requests.put(f"{BASE_URL}/api/clubs/{clubs[0]['id']}",
-                     json={"admin_email": ""},
+                     json={"email": ""},
                      headers=admin_headers, timeout=5)
 
 
@@ -944,7 +945,7 @@ class TestAthleteOwnership:
         r = requests.get(f"{BASE_URL}/api/clubs", headers=coach_headers, timeout=10)
         r.raise_for_status()
         for c in r.json():
-            assert "admin_email" not in c
+            assert "email" not in c
 
 
 # ---------------------------------------------------------------------------

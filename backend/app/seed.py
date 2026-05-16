@@ -71,7 +71,7 @@ def seed_from_lxf(db: Session, file_bytes: bytes) -> dict:
             import secrets, string
             pin = ''.join(secrets.choice(string.digits) for _ in range(6))
             club = Club(name=cd["name"], code=cd["code"], nation=cd["nation"], pin=pin,
-                        admin_email=cd.get("email") or None)
+                        email=cd.get("email") or None)
             db.add(club)
             db.flush()
             clubs_added += 1
@@ -80,8 +80,8 @@ def seed_from_lxf(db: Session, file_bytes: bytes) -> dict:
                 club.code = cd["code"]
             if cd.get("nation"):
                 club.nation = cd["nation"]
-            if not club.admin_email and cd.get("email"):
-                club.admin_email = cd["email"]
+            if not club.email and cd.get("email"):
+                club.email = cd["email"]
 
         for ad in cd["athletes"]:
             existing = db.query(Athlete).filter(

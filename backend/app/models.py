@@ -26,7 +26,7 @@ class Club(Base):
     code = Column(String(20), unique=True)
     nation = Column(String(3))
     pin = Column(String(6))
-    admin_email = Column(String(200))
+    email = Column(String(200))
     stripe_account_id = Column(String(100))
     invite_send_count = Column(Integer, default=0, nullable=False, server_default="0")
     stripe_send_count = Column(Integer, default=0, nullable=False, server_default="0")

@@ -95,10 +95,11 @@ class ClubCreate(BaseModel):
     code: str = Field(..., min_length=1)
     nation: str = "CAN"
     pin: str | None = None
+    email: str | None = None
 
 
 class ClubUpdate(BaseModel):
-    admin_email: str | None = None
+    email: str | None = None
 
 
 class RegistrationCreate(BaseModel):
@@ -358,7 +359,7 @@ def list_clubs(request: Request, db: Session = Depends(get_db)):
         items = _club_line_items(db, c, meet_fees)
         item["total_fees_cents"] = sum(it["unit_cents"] * it["qty"] for it in items)
         if role in ("admin", "organizer"):
-            item["admin_email"] = c.admin_email or ""
+            item["email"] = c.email or ""
         if role == "admin":
             item["pin"] = c.pin
         result.append(item)
@@ -368,7 +369,7 @@ def list_clubs(request: Request, db: Session = Depends(get_db)):
 @router.post("/clubs", dependencies=[Depends(require_admin)])
 def create_club(data: ClubCreate, db: Session = Depends(get_db)):
     pin = data.pin or ''.join(secrets.choice(string.digits) for _ in range(6))
-    club = Club(name=data.name, code=data.code, nation=data.nation, pin=pin)
+    club = Club(name=data.name, code=data.code, nation=data.nation, pin=pin, email=data.email)
     db.add(club)
     db.commit()
     return {"id": club.id, "pin": club.pin}
@@ -405,8 +406,8 @@ def update_club(club_id: int, data: ClubUpdate, db: Session = Depends(get_db)):
     club = db.query(Club).get(club_id)
     if not club:
         raise HTTPException(404)
-    if data.admin_email is not None:
-        club.admin_email = data.admin_email
+    if data.email is not None:
+        club.email = data.email
     db.commit()
     return {"ok": True}
 
@@ -422,7 +423,7 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
     club = db.query(Club).get(club_id)
     if not club:
         raise HTTPException(404)
-    if not club.admin_email:
+    if not club.email:
         raise HTTPException(400, "No admin email set for this club")
 
     lang = data.get("lang", "fr")
@@ -471,7 +472,7 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
     if not is_organizer and org_cfg:
         org_club = db.query(Club).get(int(org_cfg.value))
         if org_club:
-            org_email = org_club.admin_email or ""
+            org_email = org_club.email or ""
             org_club_name = org_club.name or ""
 
     support_email = os.environ.get("SUPPORT_EMAIL", "")
@@ -566,7 +567,7 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
     from_email = os.environ.get("RESEND_FROM_EMAIL", "noreply@example.com")
     resp = httpx.post("https://api.resend.com/emails", json={
         "from": from_email,
-        "to": [club.admin_email],
+        "to": [club.email],
         "subject": subject,
         "html": html,
     }, headers={"Authorization": f"Bearer {resend_key}"}, timeout=10)
@@ -577,14 +578,14 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
     club.invite_send_count = (club.invite_send_count or 0) + 1
     db.commit()
 
-    return {"message": f"Email sent to {club.admin_email}"}
+    return {"message": f"Email sent to {club.email}"}
 
 
 @router.get("/self-invite/clubs")
 def self_invite_clubs(db: Session = Depends(get_db)):
     """Public: list clubs that have an admin email, for the self-invite page."""
     clubs = (db.query(Club)
-             .filter(Club.admin_email != None, Club.admin_email != '')
+             .filter(Club.email != None, Club.email != '')
              .order_by(Club.name).all())
     return [{"id": c.id, "name": c.name} for c in clubs]
 
@@ -617,18 +618,18 @@ def self_invite(data: dict, request: Request, db: Session = Depends(get_db)):
         raise HTTPException(400, "email required")
 
     club = db.query(Club).get(club_id)
-    if not club or not club.admin_email:
+    if not club or not club.email:
         raise HTTPException(404, "Club not found")
 
     # Validate email matches
-    if email != (club.admin_email or "").strip().lower():
+    if email != (club.email or "").strip().lower():
         # Return organizer contact so the user knows who to reach
         org_cfg = db.query(AppConfig).get("organizer_club_id")
         org_email = ""
         if org_cfg:
             org_club = db.query(Club).get(int(org_cfg.value))
             if org_club:
-                org_email = org_club.admin_email or ""
+                org_email = org_club.email or ""
         raise HTTPException(403, f"email_mismatch|{org_email}")
 
     return send_pin(club_id, {"lang": lang}, db)
@@ -1173,9 +1174,9 @@ def regenerate_pins(db: Session = Depends(get_db)):
 
 @router.post("/organizer/clubs/invite-all", dependencies=[Depends(require_organizer_or_admin)])
 def invite_all_clubs(data: dict, request: Request, db: Session = Depends(get_db)):
-    """Send PIN invitation email to all clubs that have an admin_email set."""
+    """Send PIN invitation email to all clubs that have an email set."""
     lang = data.get("lang", "fr")
-    clubs = db.query(Club).filter(Club.admin_email != None, Club.admin_email != "").all()
+    clubs = db.query(Club).filter(Club.email != None, Club.email != "").all()
     sent = 0
     errors = []
     for club in clubs:
@@ -1378,7 +1379,7 @@ def send_club_invoice(club_id: int, db: Session = Depends(get_db)):
     meet_name = _meet_name(db)
 
     # Find or create customer on the connected account
-    email = (club.admin_email or "").strip()
+    email = (club.email or "").strip()
     customer = None
     if email:
         existing = stripe.Customer.list(email=email, limit=1, stripe_account=acct)

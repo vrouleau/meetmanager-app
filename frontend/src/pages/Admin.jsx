@@ -136,7 +136,7 @@ export default function Admin() {
         <div className="border p-4 rounded">
           <h2 className="font-semibold mb-2">{t.upload_lxf}</h2>
           <p className="text-sm text-gray-600 mb-2 text-pretty">{t.upload_lxf_desc}</p>
-          <input type="file" accept=".lxf" onChange={uploadEntries} />
+          <input type="file" accept=".lxf" onChange={uploadEntries} className="file:border file:border-gray-300 file:rounded file:px-3 file:py-1.5 file:text-sm file:bg-white file:cursor-pointer" />
         </div>
 
         <div className="border p-4 rounded">

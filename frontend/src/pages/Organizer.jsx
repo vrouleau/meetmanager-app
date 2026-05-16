@@ -225,7 +225,7 @@ export default function Organizer() {
           {t.export_meet_smb}
         </button>
         <p className="text-sm text-gray-600 mb-2 text-pretty">{t.upload_meet_desc}</p>
-        <input type="file" accept=".lxf" onChange={uploadMeet} />
+        <input type="file" accept=".lxf" onChange={uploadMeet} className="file:border file:border-gray-300 file:rounded file:px-3 file:py-1.5 file:text-sm file:bg-white file:cursor-pointer" />
       </div>
 
       {/* Export */}

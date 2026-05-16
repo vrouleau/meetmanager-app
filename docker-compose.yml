@@ -27,6 +27,7 @@ services:
       MEET_TEMPLATE: /app/templates/meet.smb
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
       BEST_TIME_MAX_AGE_MONTHS: ${BEST_TIME_MAX_AGE_MONTHS:-18}
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
     depends_on:
       db:
         condition: service_healthy
@@ -37,6 +38,9 @@ services:
 
   frontend:
     image: ${DOCKERHUB_USERNAME:-vrouleau}/meetmanager-frontend:${IMAGE_TAG:-latest}
+    environment:
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
     ports:
       - "${FRONTEND_PORT:-8001}:80"
     depends_on:

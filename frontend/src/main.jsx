@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter, Routes, Route, Link } from 'react-router'
+import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router'
 import './index.css'
 import { LangProvider, useLang } from './i18n'
 import Login from './pages/Login'
@@ -11,6 +11,13 @@ import Organizer from './pages/Organizer'
 import DataManagement from './pages/DataManagement'
 import Secret from './pages/Secret'
 import SelfInvite from './pages/SelfInvite'
+import Workflow from './pages/Workflow'
+import Footer from './Footer'
+
+function AuthFooter({ canOrganizer }) {
+  const location = useLocation()
+  return <Footer showUsage={canOrganizer && location.pathname === '/organizer'} />
+}
 
 function AppInner() {
   const [auth, setAuth] = useState(null)
@@ -39,8 +46,10 @@ function AppInner() {
       <Routes>
         <Route path="/secret/:token" element={<Secret />} />
         <Route path="/self-invite" element={<SelfInvite />} />
+        <Route path="/usage" element={<Workflow />} />
         <Route path="*" element={<Login onLogin={setAuth} />} />
       </Routes>
+      <Footer />
     </BrowserRouter>
   )
 
@@ -69,7 +78,9 @@ function AppInner() {
         {canAdmin && <Route path="/admin" element={<Admin />} />}
         {canAdmin && <Route path="/data-management" element={<DataManagement />} />}
         <Route path="/secret/:token" element={<Secret />} />
+        <Route path="/usage" element={<Workflow />} />
       </Routes>
+      <AuthFooter canOrganizer={canOrganizer} />
     </BrowserRouter>
   )
 }

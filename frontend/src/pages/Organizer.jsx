@@ -18,9 +18,9 @@ export default function Organizer() {
   }
 
   async function loadClubs() {
-    const r = await api.get('/clubs')
-    const myId = Number(localStorage.getItem('club_id'))
-    setClubs(r.data.filter(c => c.id !== myId))
+    const [r, org] = await Promise.all([api.get('/clubs'), api.get('/admin/organizer')])
+    const orgId = org.data.club_id
+    setClubs(r.data.filter(c => c.id !== orgId))
   }
 
   async function loadStripeStatus() {

@@ -92,7 +92,7 @@ class AthleteUpdate(BaseModel):
 
 class ClubCreate(BaseModel):
     name: str = Field(..., min_length=1)
-    code: str = ""
+    code: str = Field(..., min_length=1)
     nation: str = "CAN"
     pin: str | None = None
 

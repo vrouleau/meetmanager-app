@@ -19,7 +19,8 @@ export default function Organizer() {
 
   async function loadClubs() {
     const r = await api.get('/clubs')
-    setClubs(r.data)
+    const myId = Number(localStorage.getItem('club_id'))
+    setClubs(r.data.filter(c => c.id !== myId))
   }
 
   async function loadStripeStatus() {

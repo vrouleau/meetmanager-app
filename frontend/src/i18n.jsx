@@ -125,6 +125,8 @@ const translations = {
     self_invite_email_mismatch: "The email entered does not match the one on file for this club.",
     self_invite_contact_organizer: "Contact the organizer:",
     self_invite_email_placeholder: "your@email.com",
+    footer_get_help: "Get help",
+    footer_usage: "Usage guide",
   },
   fr: {
     athletes: "Athlètes",
@@ -250,6 +252,8 @@ const translations = {
     self_invite_email_mismatch: "Le courriel saisi ne correspond pas à celui enregistré pour ce club.",
     self_invite_contact_organizer: "Contactez l'organisateur :",
     self_invite_email_placeholder: "votre@courriel.com",
+    footer_get_help: "Obtenir de l'aide",
+    footer_usage: "Guide d'utilisation",
   },
 }
 

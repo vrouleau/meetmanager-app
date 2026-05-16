@@ -461,6 +461,57 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
     closure_cfg = db.query(AppConfig).get("closure_date")
     closure_date = closure_cfg.value if closure_cfg else None
 
+    # Determine if recipient is the organizer
+    org_cfg = db.query(AppConfig).get("organizer_club_id")
+    is_organizer = org_cfg and str(club.id) == str(org_cfg.value)
+
+    # Organizer email for coach contact note
+    org_email = ""
+    if not is_organizer and org_cfg:
+        org_club = db.query(Club).get(int(org_cfg.value))
+        if org_club:
+            org_email = org_club.admin_email or ""
+
+    support_email = os.environ.get("SUPPORT_EMAIL", "")
+
+    # Build contact note for bottom of email
+    footer_note = "<hr style=\"margin-top:20px\">"
+    if is_organizer:
+        if lang == "fr":
+            if support_email:
+                footer_note += (f"<p>Pour toute question, contactez le support : "
+                                f"<a href=\"mailto:{support_email}\">{support_email}</a></p>")
+        else:
+            if support_email:
+                footer_note += (f"<p>If you have questions, contact support: "
+                                f"<a href=\"mailto:{support_email}\">{support_email}</a></p>")
+    else:
+        if lang == "fr":
+            lines = []
+            if org_email:
+                lines.append(f"Pour toute question sur la compétition, contactez l'organisateur : "
+                             f"<a href=\"mailto:{org_email}\">{org_email}</a>")
+            if support_email:
+                lines.append(f"Pour de l'aide avec le portail d'inscription, contactez le support : "
+                             f"<a href=\"mailto:{support_email}\">{support_email}</a>")
+            if lines:
+                footer_note += "<p>" + "<br>".join(lines) + "</p>"
+        else:
+            lines = []
+            if org_email:
+                lines.append(f"If you have questions about the meet, contact the organizer: "
+                             f"<a href=\"mailto:{org_email}\">{org_email}</a>")
+            if support_email:
+                lines.append(f"For help with the registration portal, contact support: "
+                             f"<a href=\"mailto:{support_email}\">{support_email}</a>")
+            if lines:
+                footer_note += "<p>" + "<br>".join(lines) + "</p>"
+
+    if lang == "fr":
+        footer_note += "<p style=\"font-size:11px;color:#888\">Ce courriel est envoyé automatiquement. Veuillez ne pas répondre à ce courriel.</p>"
+    else:
+        footer_note += "<p style=\"font-size:11px;color:#888\">This is an automated message. Please do not reply to this email.</p>"
+
     # Email content
     if lang == "fr":
         subject = f"Invitation — {meet_name}"
@@ -483,7 +534,7 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
                 f"ajuster le temps d'inscription si nécessaire. Répéter pour chaque athlète à inscrire.</li>"
                 f"</ol>"
                 f"<p>Bonne compétition!</p>"
-                f"<hr style=\"margin-top:20px\"><p style=\"font-size:11px;color:#888\">Ce courriel est envoyé automatiquement. Veuillez ne pas y répondre.</p>")
+                f"{footer_note}")
     else:
         subject = f"Invitation — {meet_name}"
         deadline = (f"<p style=\"color:#c00;font-weight:bold\">⚠️ Entry deadline: {closure_date}. "
@@ -505,7 +556,7 @@ def send_pin(club_id: int, data: dict, db: Session = Depends(get_db)):
                 f"Repeat for every athlete you want to register.</li>"
                 f"</ol>"
                 f"<p>Good luck!</p>"
-                f"<hr style=\"margin-top:20px\"><p style=\"font-size:11px;color:#888\">This is an automated email. Please do not reply.</p>")
+                f"{footer_note}")
 
     # Send via Resend
     from_email = os.environ.get("RESEND_FROM_EMAIL", "noreply@example.com")

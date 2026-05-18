@@ -195,6 +195,29 @@ class TestRegistrationWrite:
 
         delete_registration(r2["id"], admin_headers)
 
+    def test_nt_registration_persists(self, adult, admin_headers):
+        """A registration with entry_time_ms=None (NT) must show as registered on reload."""
+        reg = get_registration(adult["id"], admin_headers)
+        style = next(s for s in reg["individual_events"]
+                     if any(c["age_code"] == "Open" for c in s["categories"]))
+        cat = next(c for c in style["categories"] if c["age_code"] == "Open")
+
+        # Register with no time (NT)
+        r = post_registration(adult["id"], cat["event_id"], "Open", None, admin_headers)
+        reg_id = r["id"]
+        assert reg_id
+
+        # Reload and verify it shows as registered
+        after = get_registration(adult["id"], admin_headers)
+        after_style = next(s for s in after["individual_events"]
+                           if s["style_uid"] == style["style_uid"])
+        regd = next((c for c in after_style["categories"] if c["registered"]), None)
+        assert regd is not None, "NT registration must appear as registered after reload"
+        assert regd["age_code"] == "Open"
+        assert regd["entry_time_ms"] is None
+
+        delete_registration(reg_id, admin_headers)
+
 
 # ---------------------------------------------------------------------------
 # Export

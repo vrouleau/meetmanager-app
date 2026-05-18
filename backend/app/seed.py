@@ -8,7 +8,7 @@ from xml.etree import ElementTree as ET  # noqa: F401 — kept for type hints
 from defusedxml.ElementTree import fromstring as _ET_fromstring
 
 from sqlalchemy.orm import Session
-from .models import Club, Athlete, Gender
+from .models import Club, Athlete, gender_from_str
 
 
 def parse_lxf(file_bytes: bytes) -> list[dict]:
@@ -18,7 +18,6 @@ def parse_lxf(file_bytes: bytes) -> list[dict]:
         xml_bytes = z.read(lef_name)
 
     root = _ET_fromstring(xml_bytes)
-    ns = ""  # Lenex 3.0 has no namespace typically
     clubs_data = []
 
     for meet in root.iter("MEET"):
@@ -85,20 +84,19 @@ def seed_from_lxf(db: Session, file_bytes: bytes) -> dict:
 
         for ad in cd["athletes"]:
             existing = db.query(Athlete).filter(
-                Athlete.first_name == ad["first_name"],
-                Athlete.last_name == ad["last_name"],
-                Athlete.club_id == club.id,
+                Athlete.firstname == ad["first_name"],
+                Athlete.lastname == ad["last_name"],
+                Athlete.clubid == club.clubid,
             ).first()
             if not existing:
-                gender = Gender.F if ad["gender"] == "F" else Gender.M
                 ath = Athlete(
-                    first_name=ad["first_name"],
-                    last_name=ad["last_name"],
-                    gender=gender,
+                    firstname=ad["first_name"],
+                    lastname=ad["last_name"],
+                    gender=gender_from_str(ad["gender"]),
                     birthdate=ad["birthdate"],
                     license=ad["license"],
                     exception=ad.get("exception"),
-                    club_id=club.id,
+                    clubid=club.clubid,
                 )
                 db.add(ath)
                 athletes_added += 1

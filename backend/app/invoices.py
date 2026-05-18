@@ -9,7 +9,10 @@ from io import BytesIO
 import stripe
 from sqlalchemy.orm import Session, joinedload
 
-from .models import Athlete, AppConfig, Club, Event, Registration
+from .models import (
+    Athlete, BsGlobal, Club, SwimEvent, SwimStyle, SwimResult,
+    fee_dollars_to_cents,
+)
 
 
 MEET_FEE_LABELS = {
@@ -23,11 +26,11 @@ MEET_FEE_LABELS = {
 
 
 def _meet_fees(db: Session) -> dict[str, int]:
-    cfg = db.query(AppConfig).get("meet_fees_json")
-    if not cfg or not cfg.value:
+    cfg = db.query(BsGlobal).get("meet_fees_json")
+    if not cfg or not cfg.data:
         return {}
     try:
-        data = json.loads(cfg.value)
+        data = json.loads(cfg.data)
     except ValueError:
         return {}
     return {k: int(v) for k, v in data.items() if isinstance(v, (int, float))}
@@ -41,19 +44,21 @@ def _stripe_client() -> None:
 
 
 def _club_line_items(db: Session, club: Club, meet_fees: dict[str, int]) -> list[dict]:
-    """Build flat line items for a club: per-event fees (individual events bill
-    per athlete, relay events bill once per team) plus meet-level fees (CLUB,
-    ATHLETE × distinct registered athletes, RELAY × distinct relay events,
-    TEAM/LATEFEE/LSCMEETFEE qty 1)."""
-    # Build a map of event_number -> fee_cents for fee lookup (includes paired events)
-    all_events = db.query(Event).all()
-    fee_by_number = {e.event_number: e.fee_cents for e in all_events if e.fee_cents > 0}
+    """Build flat line items for a club."""
+    # Build a map of event_number -> fee_cents
+    all_events = db.query(SwimEvent).options(joinedload(SwimEvent.swimstyle)).all()
+    fee_by_number = {}
+    for e in all_events:
+        fee_cents = fee_dollars_to_cents(e.fee)
+        if fee_cents > 0:
+            fee_by_number[e.eventnumber] = fee_cents
 
     rows = (
-        db.query(Registration, Event, Athlete)
-        .join(Event, Registration.event_id == Event.id)
-        .join(Athlete, Registration.athlete_id == Athlete.id)
-        .filter(Athlete.club_id == club.id)
+        db.query(SwimResult, SwimEvent, Athlete)
+        .join(SwimEvent, SwimResult.swimeventid == SwimEvent.swimeventid)
+        .join(Athlete, SwimResult.athleteid == Athlete.athleteid)
+        .join(SwimStyle, SwimEvent.swimstyleid == SwimStyle.swimstyleid)
+        .filter(Athlete.clubid == club.clubid, SwimResult.entrytime != None)
         .all()
     )
 
@@ -61,34 +66,36 @@ def _club_line_items(db: Session, club: Club, meet_fees: dict[str, int]) -> list
     relay_seen: dict[int, dict] = {}
 
     for reg, ev, ath in rows:
-        # Fee is either on this event or on the preceding event (paired structure)
-        fee = ev.fee_cents or fee_by_number.get(ev.event_number - 1, 0)
+        fee = fee_dollars_to_cents(ev.fee) or fee_by_number.get(ev.eventnumber - 1, 0)
         if fee <= 0:
             continue
-        if ev.relay_count == 1:
+        style = ev.swimstyle if hasattr(ev, 'swimstyle') and ev.swimstyle else None
+        relay_count = style.relaycount if style else 1
+        style_name = style.name if style else ""
+        if relay_count == 1:
             event_items.append({
-                "event_number": ev.event_number,
-                "event_name": ev.style_name or "",
-                "description": f"{ath.last_name.upper()}, {ath.first_name}",
+                "event_number": ev.eventnumber,
+                "event_name": style_name,
+                "description": f"{ath.lastname.upper()}, {ath.firstname}",
                 "qty": 1,
                 "unit_cents": fee,
-                "_sort": (ev.event_number or 0, ath.last_name.lower(), ath.first_name.lower()),
+                "_sort": (ev.eventnumber or 0, ath.lastname.lower(), ath.firstname.lower()),
             })
         else:
-            line = relay_seen.get(ev.id)
+            line = relay_seen.get(ev.swimeventid)
             if line is None:
                 line = {
-                    "event_number": ev.event_number,
-                    "event_name": ev.style_name or "",
+                    "event_number": ev.eventnumber,
+                    "event_name": style_name,
                     "description": "",
                     "members": [],
                     "qty": 1,
                     "unit_cents": fee,
-                    "_sort": (ev.event_number or 0, "", ""),
+                    "_sort": (ev.eventnumber or 0, "", ""),
                 }
-                relay_seen[ev.id] = line
+                relay_seen[ev.swimeventid] = line
                 event_items.append(line)
-            line["members"].append(f"{ath.last_name.upper()}, {ath.first_name}")
+            line["members"].append(f"{ath.lastname.upper()}, {ath.firstname}")
 
     for line in relay_seen.values():
         members = sorted(set(line.pop("members")))
@@ -98,22 +105,23 @@ def _club_line_items(db: Session, club: Club, meet_fees: dict[str, int]) -> list
     for it in event_items:
         it.pop("_sort", None)
 
-    # Meet-level fee lines, sorted before event lines
+    # Meet-level fee lines
     meet_items: list[dict] = []
     if meet_fees:
-        # Quantities derived from this club's registrations
         athlete_count = (
-            db.query(Athlete.id)
-            .join(Registration, Registration.athlete_id == Athlete.id)
-            .filter(Athlete.club_id == club.id)
+            db.query(Athlete.athleteid)
+            .join(SwimResult, SwimResult.athleteid == Athlete.athleteid)
+            .filter(Athlete.clubid == club.clubid, SwimResult.entrytime != None)
             .distinct()
             .count()
         )
         relay_event_count = (
-            db.query(Event.id)
-            .join(Registration, Registration.event_id == Event.id)
-            .join(Athlete, Registration.athlete_id == Athlete.id)
-            .filter(Athlete.club_id == club.id, Event.relay_count > 1)
+            db.query(SwimEvent.swimeventid)
+            .join(SwimResult, SwimResult.swimeventid == SwimEvent.swimeventid)
+            .join(Athlete, SwimResult.athleteid == Athlete.athleteid)
+            .join(SwimStyle, SwimEvent.swimstyleid == SwimStyle.swimstyleid)
+            .filter(Athlete.clubid == club.clubid, SwimStyle.relaycount > 1,
+                    SwimResult.entrytime != None)
             .distinct()
             .count()
         )
@@ -151,7 +159,7 @@ def _find_or_create_customer(club: Club) -> stripe.Customer:
     return stripe.Customer.create(
         name=club.name,
         email=email or None,
-        metadata={"meetmanager_club_id": str(club.id)},
+        metadata={"meetmanager_club_id": str(club.clubid)},
     )
 
 
@@ -165,7 +173,7 @@ def _create_draft_for_club(club: Club, items: list[dict], meet_name: str) -> dic
         days_until_due=30,
         description=f"{meet_name} — Inscriptions",
         metadata={
-            "meetmanager_club_id": str(club.id),
+            "meetmanager_club_id": str(club.clubid),
             "meetmanager_meet": meet_name,
         },
         pending_invoice_items_behavior="exclude",
@@ -193,8 +201,8 @@ def _create_draft_for_club(club: Club, items: list[dict], meet_name: str) -> dic
 
 
 def _meet_name(db: Session) -> str:
-    cfg = db.query(AppConfig).get("meet_name")
-    return cfg.value if cfg else "Compétition"
+    cfg = db.query(BsGlobal).get("meet_name")
+    return cfg.data if cfg else "Compétition"
 
 
 def create_invoice_for_club(db: Session, club_id: int) -> dict:
@@ -257,7 +265,7 @@ def generate_invoice_pdf(db: Session, club_id: int) -> bytes:
 
     meet_name = _meet_name(db)
     issue_date = date.today()
-    invoice_no = f"INV-{issue_date.strftime('%Y%m%d')}-{club.id:04d}"
+    invoice_no = f"INV-{issue_date.strftime('%Y%m%d')}-{club.clubid:04d}"
 
     _BRAND = colors.HexColor("#1e3a8a")
     _BAND = colors.HexColor("#eef2ff")

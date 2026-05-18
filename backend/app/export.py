@@ -1,4 +1,4 @@
-"""Generate Lenex .lxf from registrations."""
+"""Generate Lenex .lxf from registrations (swimresult rows with entrytime)."""
 from __future__ import annotations
 
 import os
@@ -9,7 +9,11 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from sqlalchemy.orm import Session, joinedload
-from .models import Club, Athlete, Event, Registration, BestTime
+from .models import (
+    Club, Athlete, SwimEvent, SwimStyle, SwimResult, AgeGroup, BsGlobal,
+    gender_to_str, fee_dollars_to_cents,
+)
+from .best_times import get_best_time_date
 
 
 def _ms_to_lenex(ms: int | None) -> str:
@@ -27,15 +31,15 @@ def _agegroup_for_code(age_groups, age_code: str, masters: bool):
     if masters:
         return age_groups[0] if age_groups else None
     for ag in age_groups:
-        if age_code == "10-" and ag.age_max == 10:
+        if age_code == "10-" and ag.agemax == 10:
             return ag
-        if age_code == "11-12" and ag.age_min == 11 and ag.age_max == 12:
+        if age_code == "11-12" and ag.agemin == 11 and ag.agemax == 12:
             return ag
-        if age_code == "13-14" and ag.age_min == 13 and ag.age_max == 14:
+        if age_code == "13-14" and ag.agemin == 13 and ag.agemax == 14:
             return ag
-        if age_code == "15-18" and ag.age_min == 15 and ag.age_max == 18:
+        if age_code == "15-18" and ag.agemin == 15 and ag.agemax == 18:
             return ag
-        if age_code == "Open" and ag.age_min == 19 and ag.age_max == -1:
+        if age_code == "Open" and ag.agemin == 19 and ag.agemax == -1:
             return ag
     return None
 
@@ -43,16 +47,20 @@ def _agegroup_for_code(age_groups, age_code: str, masters: bool):
 def generate_lxf(db: Session) -> bytes:
     """Generate a Lenex 3.0 .lxf zip from all registrations."""
     from .meet_parser import parse_meet_lxf
-    from .models import AppConfig
+
     meet_path = Path(os.environ.get("MEET_STORAGE", "/app/data/meet.lxf"))
     meet_struct = parse_meet_lxf(meet_path)
 
-    age_base_cfg = db.query(AppConfig).get("age_base_date")
-    age_base_date = age_base_cfg.value if age_base_cfg and age_base_cfg.value else date(date.today().year, 12, 31).isoformat()
+    cfg = db.query(BsGlobal).get("age_base_date")
+    age_base_date = cfg.data if cfg and cfg.data else date(date.today().year, 12, 31).isoformat()
 
-    regs = db.query(Registration).options(
-        joinedload(Registration.athlete).joinedload(Athlete.club),
-        joinedload(Registration.event).joinedload(Event.age_groups),
+    # Get all registrations (swimresults with entrytime set)
+    regs = db.query(SwimResult).filter(
+        SwimResult.entrytime != None
+    ).options(
+        joinedload(SwimResult.athlete).joinedload(Athlete.club),
+        joinedload(SwimResult.event).joinedload(SwimEvent.agegroups),
+        joinedload(SwimResult.event).joinedload(SwimEvent.swimstyle),
     ).all()
 
     # Group by club -> athlete -> entries
@@ -60,9 +68,9 @@ def generate_lxf(db: Session) -> bytes:
     for reg in regs:
         ath = reg.athlete
         club = ath.club
-        clubs_map.setdefault(club.id, {"club": club, "athletes": {}})
-        clubs_map[club.id]["athletes"].setdefault(ath.id, {"athlete": ath, "entries": []})
-        clubs_map[club.id]["athletes"][ath.id]["entries"].append(reg)
+        clubs_map.setdefault(club.clubid, {"club": club, "athletes": {}})
+        clubs_map[club.clubid]["athletes"].setdefault(ath.athleteid, {"athlete": ath, "entries": []})
+        clubs_map[club.clubid]["athletes"][ath.athleteid]["entries"].append(reg)
 
     # Build XML
     root = ET.Element("LENEX", version="3.0")
@@ -74,7 +82,7 @@ def generate_lxf(db: Session) -> bytes:
     })
     ET.SubElement(meet, "AGEDATE", value=age_base_date, type="DATE")
 
-    # Sessions + Events from meet structure (preserves original session/event ids + age groups)
+    # Sessions + Events from meet structure
     sessions_xml = ET.SubElement(meet, "SESSIONS")
     for ses in meet_struct.sessions:
         ses_xml = ET.SubElement(sessions_xml, "SESSION", {
@@ -112,18 +120,18 @@ def generate_lxf(db: Session) -> bytes:
             "name": club.name,
             "code": club.code or "",
             "nation": club.nation or "CAN",
-            "clubid": str(club.id),
+            "clubid": str(club.clubid),
         })
         athletes_xml = ET.SubElement(club_xml, "ATHLETES")
 
         for ath_data in club_data["athletes"].values():
             ath = ath_data["athlete"]
             ath_xml = ET.SubElement(athletes_xml, "ATHLETE", {
-                "athleteid": str(ath.id),
-                "firstname": ath.first_name,
-                "lastname": ath.last_name,
-                "gender": ath.gender.value,
-                "birthdate": str(ath.birthdate) if ath.birthdate else "",
+                "athleteid": str(ath.athleteid),
+                "firstname": ath.firstname,
+                "lastname": ath.lastname,
+                "gender": gender_to_str(ath.gender),
+                "birthdate": str(ath.birthdate.date()) if ath.birthdate else "",
                 "license": ath.license or "",
             })
             if ath.exception:
@@ -131,35 +139,30 @@ def generate_lxf(db: Session) -> bytes:
             entries_xml = ET.SubElement(ath_xml, "ENTRIES")
             for reg in ath_data["entries"]:
                 ev = reg.event
-                if not ev or not ev.splash_event_id:
+                if not ev:
                     continue
                 entry_attrs = {
-                    "eventid": str(ev.splash_event_id),
+                    "eventid": str(ev.swimeventid),
                     "entrycourse": meet_struct.course or "LCM",
                 }
-                ag = _agegroup_for_code(ev.age_groups, reg.age_code, ev.masters)
+                ag = _agegroup_for_code(ev.agegroups, reg.age_code, ev.masters == "T")
                 if ag:
-                    entry_attrs["agegroupid"] = str(ag.splash_agegroup_id)
-                if reg.entry_time_ms:
-                    entry_attrs["entrytime"] = _ms_to_lenex(reg.entry_time_ms)
+                    entry_attrs["agegroupid"] = str(ag.agegroupid)
+                if reg.entrytime:
+                    entry_attrs["entrytime"] = _ms_to_lenex(reg.entrytime)
                 entry_xml = ET.SubElement(entries_xml, "ENTRY", entry_attrs)
-                if reg.entry_time_ms:
-                    # Look up best time date for this event's style
-                    bt = db.query(BestTime).filter(
-                        BestTime.athlete_id == ath.id,
-                        BestTime.style_uid == ev.style_uid,
-                        BestTime.course == (meet_struct.course or "LCM"),
-                    ).first() if ev.style_uid else None
+                if reg.entrytime and ev.swimstyleid:
+                    bt_date = get_best_time_date(db, ath.athleteid, ev.swimstyleid,
+                                                 meet_struct.course or "LCM")
                     meetinfo_attrs = {
-                        "qualificationtime": _ms_to_lenex(reg.entry_time_ms),
+                        "qualificationtime": _ms_to_lenex(reg.entrytime),
                         "course": meet_struct.course or "LCM",
-                        "date": str(bt.recorded_on) if bt and bt.recorded_on else str(date.today()),
+                        "date": str(bt_date) if bt_date else str(date.today()),
                     }
                     ET.SubElement(entry_xml, "MEETINFO", meetinfo_attrs)
 
     xml_bytes = ET.tostring(root, encoding="unicode", xml_declaration=True).encode("utf-8")
 
-    # Wrap in zip
     buf = BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("meet.lef", xml_bytes)

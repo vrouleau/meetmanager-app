@@ -6,7 +6,8 @@ from io import BytesIO
 from xml.etree import ElementTree as ET
 
 from sqlalchemy.orm import Session, joinedload
-from .models import Club, Athlete, BestTime, Event
+from .models import Club, Athlete, SwimEvent, SwimStyle, BsGlobal, gender_to_str
+from .best_times import get_best_times
 
 
 def _ms_to_lenex(ms: int | None) -> str:
@@ -20,22 +21,27 @@ def _ms_to_lenex(ms: int | None) -> str:
 
 
 def generate_entries_lxf(db: Session) -> bytes:
-    """Generate Lenex .lxf with all clubs, athletes, and best times as entry times."""
+    """Generate Lenex .lxf with all clubs, athletes, and best times."""
     clubs = db.query(Club).options(
-        joinedload(Club.athletes).joinedload(Athlete.best_times)
+        joinedload(Club.athletes)
     ).all()
 
-    # Collect all unique style_uids and their names from events table
+    # Collect all style_uids from best times
     style_uids: set[int] = set()
+    athlete_bts: dict[int, dict] = {}
     for club in clubs:
         for ath in club.athletes:
-            for bt in ath.best_times:
-                style_uids.add(bt.style_uid)
+            bt_data = get_best_times(db, ath.athleteid)
+            if bt_data:
+                athlete_bts[ath.athleteid] = bt_data
+                for uid_key in bt_data:
+                    style_uids.add(int(uid_key))
 
+    # Get style names
     style_names: dict[int, str] = {}
     for uid in style_uids:
-        ev = db.query(Event).filter(Event.style_uid == uid).first()
-        style_names[uid] = ev.style_name if ev else ""
+        style = db.query(SwimStyle).get(uid)
+        style_names[uid] = style.name if style else ""
 
     root = ET.Element("LENEX", version="3.0")
     meets = ET.SubElement(root, "MEETS")
@@ -45,7 +51,7 @@ def generate_entries_lxf(db: Session) -> bytes:
         "course": "LCM",
     })
 
-    # One SESSION with one EVENT per style_uid so re-import maps correctly
+    # One SESSION with one EVENT per style_uid
     sessions = ET.SubElement(meet, "SESSIONS")
     session = ET.SubElement(sessions, "SESSION", {"number": "1", "course": "LCM"})
     events_xml = ET.SubElement(session, "EVENTS")
@@ -78,29 +84,34 @@ def generate_entries_lxf(db: Session) -> bytes:
         athletes_xml = ET.SubElement(club_xml, "ATHLETES")
         for ath in club.athletes:
             ath_xml = ET.SubElement(athletes_xml, "ATHLETE", {
-                "athleteid": str(ath.id),
-                "firstname": ath.first_name,
-                "lastname": ath.last_name,
-                "gender": ath.gender.value,
-                "birthdate": str(ath.birthdate) if ath.birthdate else "",
+                "athleteid": str(ath.athleteid),
+                "firstname": ath.firstname,
+                "lastname": ath.lastname,
+                "gender": gender_to_str(ath.gender),
+                "birthdate": str(ath.birthdate.date()) if ath.birthdate else "",
                 "license": ath.license or "",
                 **({"exception": ath.exception} if ath.exception else {}),
             })
-            if ath.best_times:
+            bt_data = athlete_bts.get(ath.athleteid, {})
+            if bt_data:
                 entries_xml = ET.SubElement(ath_xml, "ENTRIES")
-                for bt in ath.best_times:
-                    entry_xml = ET.SubElement(entries_xml, "ENTRY", {
-                        "eventid": str(bt.style_uid),
-                        "entrycourse": bt.course,
-                        "entrytime": _ms_to_lenex(bt.time_ms),
-                    })
-                    meetinfo_attrs = {
-                        "qualificationtime": _ms_to_lenex(bt.time_ms),
-                        "course": bt.course,
-                    }
-                    if bt.recorded_on:
-                        meetinfo_attrs["date"] = str(bt.recorded_on)
-                    ET.SubElement(entry_xml, "MEETINFO", meetinfo_attrs)
+                for uid_key, style_data in bt_data.items():
+                    for course, entry in style_data.items():
+                        time_ms = entry.get("time_ms")
+                        if not time_ms:
+                            continue
+                        entry_xml = ET.SubElement(entries_xml, "ENTRY", {
+                            "eventid": uid_key,
+                            "entrycourse": course,
+                            "entrytime": _ms_to_lenex(time_ms),
+                        })
+                        meetinfo_attrs = {
+                            "qualificationtime": _ms_to_lenex(time_ms),
+                            "course": course,
+                        }
+                        if entry.get("date"):
+                            meetinfo_attrs["date"] = entry["date"]
+                        ET.SubElement(entry_xml, "MEETINFO", meetinfo_attrs)
 
     xml_bytes = ET.tostring(root, encoding="unicode", xml_declaration=True).encode("utf-8")
 

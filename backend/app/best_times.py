@@ -1,4 +1,14 @@
-"""Parse a Lenex results .lxf and populate best times."""
+"""Parse a Lenex results .lxf and populate best times as qttime on swimresult rows.
+
+Best times are stored on the swimresult row itself (qttime, qtcourse, qtdate, qtname).
+A separate "best_times" table no longer exists — instead we maintain a dedicated
+swimresult row per (athlete, swimevent) with entrytime=NULL, swimtime=NULL that
+carries the qualification time fields. When a registration is created, the qt fields
+are merged onto the registration's swimresult row.
+
+For backward compatibility with the import flow, this module also maintains a
+lightweight in-memory best-time cache that the registration page queries.
+"""
 from __future__ import annotations
 
 import re
@@ -11,7 +21,10 @@ from defusedxml.ElementTree import fromstring as _ET_fromstring
 import json as _json
 
 from sqlalchemy.orm import Session
-from .models import AppConfig, Athlete, BestTime, Club, Gender
+from .models import (
+    Athlete, BsGlobal, Club, SwimEvent, SwimResult, SwimStyle,
+    gender_from_str, course_from_str, COURSE_LCM, COURSE_SCM,
+)
 
 
 def _lenex_time_to_ms(t: str) -> int | None:
@@ -39,64 +52,160 @@ def _find_or_create_athlete(db: Session, first: str, last: str, license: str, cl
         if ath:
             return ath
     ath = db.query(Athlete).filter(
-        Athlete.first_name == first, Athlete.last_name == last
+        Athlete.firstname == first, Athlete.lastname == last
     ).first()
     if ath:
         return ath
     if not club:
         return None
-    ath = Athlete(first_name=first, last_name=last, gender=Gender.M, club_id=club.id, license=license)
+    ath = Athlete(firstname=first, lastname=last, gender=1, clubid=club.clubid, license=license)
     db.add(ath)
     db.flush()
     return ath
 
 
+# ---------------------------------------------------------------------------
+# Best-time storage: we store best times in bsglobal as a JSON blob keyed by
+# "bt_{athlete_id}" with structure: {style_uid: {course: {time_ms, date, source}}}
+# This avoids needing a separate table while keeping fast lookups.
+# ---------------------------------------------------------------------------
+
+def _bt_key(athlete_id: int) -> str:
+    return f"bt_{athlete_id}"
+
+
+def get_best_times(db: Session, athlete_id: int) -> dict:
+    """Return {style_uid: {"LCM": time_ms, "SCM": time_ms, "date": ...}} for an athlete."""
+    cfg = db.query(BsGlobal).get(_bt_key(athlete_id))
+    if not cfg or not cfg.data:
+        return {}
+    try:
+        return _json.loads(cfg.data)
+    except (ValueError, TypeError):
+        return {}
+
+
+def _save_best_times(db: Session, athlete_id: int, bt_data: dict):
+    """Persist best-time data for an athlete."""
+    key = _bt_key(athlete_id)
+    payload = _json.dumps(bt_data)
+    cfg = db.query(BsGlobal).get(key)
+    if cfg:
+        cfg.data = payload
+    else:
+        db.add(BsGlobal(name=key, data=payload))
+
+
 def _upsert_best_time(db: Session, athlete_id: int, style_uid: int,
                       time_ms: int, course: str, source: str,
                       recorded_on: _date | None = None) -> bool:
-    """Upsert a BT row, only overwriting if the new time is faster.
-    Returns True when a row was inserted or improved.
-    recorded_on is synced to the sibling course row so both LCM/SCM share one date."""
-    existing = db.query(BestTime).filter(
-        BestTime.athlete_id == athlete_id,
-        BestTime.style_uid == style_uid,
-        BestTime.course == course,
-    ).first()
+    """Upsert a best time in the bsglobal JSON store.
+    Returns True when a row was inserted or improved."""
+    bt_data = get_best_times(db, athlete_id)
+    uid_key = str(style_uid)
+
+    if uid_key not in bt_data:
+        bt_data[uid_key] = {}
+
+    style_data = bt_data[uid_key]
+    existing = style_data.get(course)
+    date_str = str(recorded_on) if recorded_on else None
+
     if existing:
-        if time_ms < existing.time_ms:
-            existing.time_ms = time_ms
-            existing.source = source
-            if recorded_on is not None:
-                existing.recorded_on = recorded_on
+        if time_ms < existing.get("time_ms", 999999999):
+            style_data[course] = {"time_ms": time_ms, "source": source, "date": date_str}
             improved = True
         else:
-            # Even if the time doesn't improve, stamp a date if the row has none.
-            if recorded_on is not None and existing.recorded_on is None:
-                existing.recorded_on = recorded_on
+            if date_str and not existing.get("date"):
+                existing["date"] = date_str
             improved = False
     else:
-        db.add(BestTime(
-            athlete_id=athlete_id,
-            style_uid=style_uid,
-            time_ms=time_ms,
-            course=course,
-            source=source,
-            recorded_on=recorded_on,
-        ))
+        style_data[course] = {"time_ms": time_ms, "source": source, "date": date_str}
         improved = True
 
-    # Sync recorded_on to the sibling course row so LCM and SCM share one date
-    if recorded_on is not None:
-        sibling_course = "SCM" if course == "LCM" else "LCM"
-        sibling = db.query(BestTime).filter(
-            BestTime.athlete_id == athlete_id,
-            BestTime.style_uid == style_uid,
-            BestTime.course == sibling_course,
-        ).first()
-        if sibling:
-            sibling.recorded_on = recorded_on
+    # Sync date across courses
+    if date_str:
+        for c in ("LCM", "SCM"):
+            if c in style_data and c != course:
+                style_data[c]["date"] = date_str
 
+    bt_data[uid_key] = style_data
+    _save_best_times(db, athlete_id, bt_data)
     return improved
+
+
+def delete_best_times(db: Session, athlete_id: int):
+    """Delete all best times for an athlete."""
+    key = _bt_key(athlete_id)
+    cfg = db.query(BsGlobal).get(key)
+    if cfg:
+        db.delete(cfg)
+
+
+def get_best_time_for_style(db: Session, athlete_id: int, style_uid: int, course: str) -> int | None:
+    """Get best time in ms for a specific style and course."""
+    bt_data = get_best_times(db, athlete_id)
+    uid_key = str(style_uid)
+    if uid_key not in bt_data:
+        return None
+    entry = bt_data[uid_key].get(course)
+    return entry["time_ms"] if entry else None
+
+
+def get_best_time_date(db: Session, athlete_id: int, style_uid: int, course: str) -> _date | None:
+    """Get the recorded_on date for a best time."""
+    bt_data = get_best_times(db, athlete_id)
+    uid_key = str(style_uid)
+    if uid_key not in bt_data:
+        return None
+    entry = bt_data[uid_key].get(course)
+    if not entry or not entry.get("date"):
+        return None
+    try:
+        return _date.fromisoformat(entry["date"])
+    except (ValueError, TypeError):
+        return None
+
+
+def expire_old_best_times(db: Session, athlete_id: int, max_age_months: int) -> set:
+    """Remove best times older than max_age_months. Returns set of expired style_uids."""
+    from datetime import date as _d
+    import calendar as _cal
+
+    bt_data = get_best_times(db, athlete_id)
+    if not bt_data:
+        return set()
+
+    today = _d.today()
+    m = max_age_months
+    cutoff_month = today.month - (m % 12)
+    cutoff_year = today.year - (m // 12)
+    if cutoff_month <= 0:
+        cutoff_month += 12
+        cutoff_year -= 1
+    cutoff = _d(cutoff_year, cutoff_month,
+                min(today.day, _cal.monthrange(cutoff_year, cutoff_month)[1]))
+
+    expired_styles = set()
+    for uid_key, style_data in list(bt_data.items()):
+        for course, entry in list(style_data.items()):
+            if entry.get("date"):
+                try:
+                    d = _d.fromisoformat(entry["date"])
+                    if d < cutoff:
+                        expired_styles.add(int(uid_key))
+                except (ValueError, TypeError):
+                    pass
+
+    # Remove entire style entries that have expired times
+    for uid_key in [str(uid) for uid in expired_styles]:
+        if uid_key in bt_data:
+            del bt_data[uid_key]
+
+    if expired_styles:
+        _save_best_times(db, athlete_id, bt_data)
+
+    return expired_styles
 
 
 def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
@@ -111,7 +220,7 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
     meet_el = root.find(".//MEET")
     course = meet_el.get("course", "LCM") if meet_el is not None else "LCM"
     if course not in ("LCM", "SCM"):
-        course = "LCM"  # treat SCY etc. as LCM
+        course = "LCM"
     recorded_on: _date | None = None
     if meet_el is not None:
         for date_attr in ("startdate", "date"):
@@ -123,8 +232,6 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                     pass
                 if recorded_on:
                     break
-    # SPLASH sets the date on SESSION elements, not on MEET. Fall back to the
-    # earliest session date if the MEET element has none.
     if recorded_on is None:
         for sess_el in root.iter("SESSION"):
             raw = sess_el.get("date", "")
@@ -135,12 +242,10 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                         recorded_on = d
                 except ValueError:
                     pass
-    # Some SPLASH exports omit the date entirely; use today so imported times
-    # are not immediately flagged as undated and deleted by the expiry check.
     if recorded_on is None:
         recorded_on = _date.today()
 
-    # Build eventid -> style_uid map and uid -> name from the Lenex events
+    # Build eventid -> style_uid map
     event_style: dict[str, int] = {}
     style_names: dict[int, str] = {}
     for event_el in root.iter("EVENT"):
@@ -159,7 +264,6 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
     updated = 0
     skipped = 0
     athletes_created = 0
-    # Map Lenex athleteid -> DB Athlete, used later to attribute relay times.
     athlete_by_lenex_id: dict[str, Athlete] = {}
 
     for club_el in root.iter("CLUB"):
@@ -172,20 +276,20 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
         for ath_el in club_el.iter("ATHLETE"):
             first = ath_el.get("firstname", "")
             last = ath_el.get("lastname", "")
-            license = ath_el.get("license", "")
+            license_val = ath_el.get("license", "")
             gender_str = ath_el.get("gender", "M")
             bd_str = ath_el.get("birthdate", "")
             lenex_aid = ath_el.get("athleteid", "")
 
-            athlete = _find_or_create_athlete(db, first, last, license, club)
+            athlete = _find_or_create_athlete(db, first, last, license_val, club)
             if not athlete:
                 skipped += 1
                 continue
             if lenex_aid:
                 athlete_by_lenex_id[lenex_aid] = athlete
             # Update gender/birthdate if newly created
-            if athlete.id is None or (not athlete.birthdate and bd_str):
-                athlete.gender = Gender.F if gender_str == "F" else Gender.M
+            if athlete.athleteid is None or (not athlete.birthdate and bd_str):
+                athlete.gender = gender_from_str(gender_str)
                 if bd_str:
                     try:
                         athlete.birthdate = _date.fromisoformat(bd_str)
@@ -193,10 +297,7 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                         pass
                 athletes_created += 1
 
-            # Collect best candidate times per (event, course) pair.
-            # Each entry is (time_ms, date) so the winning time carries its own date.
-            # entrycourse on individual ENTRY elements overrides the meet-level course
-            # so that a multi-course export/backup round-trips correctly.
+            # Collect best candidate times per (event, course) pair
             event_times: dict[tuple[str, str], list[tuple[int, _date | None]]] = {}
             for entry_el in ath_el.iter("ENTRY"):
                 eid = entry_el.get("eventid", "")
@@ -205,7 +306,6 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                     ec = entry_el.get("entrycourse", "") or course
                     if ec not in ("LCM", "SCM"):
                         ec = course
-                    # Use MEETINFO date as qualification date for entry times
                     entry_date: _date | None = None
                     mi = entry_el.find("MEETINFO")
                     if mi is not None:
@@ -227,16 +327,12 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                 if not style_uid:
                     continue
                 best_time, best_date = min(times, key=lambda x: x[0])
-                if _upsert_best_time(db, athlete.id, style_uid,
+                if _upsert_best_time(db, athlete.athleteid, style_uid,
                                      best_time, ev_course, source, best_date):
                     updated += 1
 
-    # Relay BT: each member of a team gets the team time recorded against the
-    # relay's style_uid, mirroring how individual times update each athlete's BT.
+    # Relay BT
     for relay_el in root.iter("RELAY"):
-        # The roster (RELAYPOSITIONS) is shared across all entries/results
-        # of a given <RELAY>. SPLASH only writes it on the first one and
-        # omits it from siblings, so fall back to the first list we find.
         roster: list[Athlete] = []
         for pos_el in relay_el.iter("RELAYPOSITION"):
             ath = athlete_by_lenex_id.get(pos_el.get("athleteid", ""))
@@ -263,26 +359,25 @@ def load_best_times(db: Session, file_bytes: bytes, source: str = "") -> dict:
                 continue
             best = min(times)
             for ath in roster:
-                if _upsert_best_time(db, ath.id, style_uid, best, course, source, recorded_on):
+                if _upsert_best_time(db, ath.athleteid, style_uid, best, course, source, recorded_on):
                     updated += 1
 
     db.commit()
 
-    # Persist style uid→name so the Data Management page can show names even without a meet file.
-    # Done in a separate commit so that a failure here never rolls back the best_times above.
+    # Persist style uid→name
     if style_names:
         try:
-            cfg = db.query(AppConfig).get("style_names_json")
-            existing: dict[int, str] = _json.loads(cfg.value) if cfg else {}
+            cfg = db.query(BsGlobal).get("style_names_json")
+            existing: dict[int, str] = _json.loads(cfg.data) if cfg else {}
             merged = {int(k): v for k, v in existing.items()}
             for uid, name in style_names.items():
                 if uid not in merged:
                     merged[uid] = name
             payload = _json.dumps({str(k): v for k, v in merged.items()})
             if cfg:
-                cfg.value = payload
+                cfg.data = payload
             else:
-                db.add(AppConfig(key="style_names_json", value=payload))
+                db.add(BsGlobal(name="style_names_json", data=payload))
             db.commit()
         except Exception:
             db.rollback()

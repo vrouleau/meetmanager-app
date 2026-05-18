@@ -393,7 +393,6 @@ def list_clubs(request: Request, db: Session = Depends(get_db)):
     reg_counts = dict(
         db.query(Athlete.clubid, func.count(distinct(Athlete.athleteid)))
         .join(SwimResult, SwimResult.athleteid == Athlete.athleteid)
-        .filter(SwimResult.entrytime != None)
         .group_by(Athlete.clubid)
         .all()
     )
@@ -820,10 +819,9 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
     if not athlete:
         raise HTTPException(404, "Athlete not found")
 
-    # Get all registrations (swimresults with entrytime set) for this athlete
+    # Get all registrations for this athlete
     regs = db.query(SwimResult).filter(
         SwimResult.athleteid == athlete_id,
-        SwimResult.entrytime != None,
     ).all()
     reg_map = {(r.swimeventid, r.age_code): r for r in regs}
 
@@ -924,7 +922,6 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
                 Athlete.athleteid != athlete_id,
                 SwimEvent.swimstyleid.in_(relay_uids),
                 SwimStyle.relaycount > 1,
-                SwimResult.entrytime != None,
             )
             .all()
         )
@@ -985,7 +982,6 @@ def _update_exception(db: Session, athlete_id: int):
     has_masters = db.query(SwimResult).filter(
         SwimResult.athleteid == athlete_id,
         SwimResult.age_code == "Masters",
-        SwimResult.entrytime != None,
     ).first() is not None
     athlete = db.query(Athlete).get(athlete_id)
     if athlete:
@@ -1172,7 +1168,7 @@ def status(db: Session = Depends(get_db)):
         "clubs": db.query(Club).count(),
         "athletes": db.query(Athlete).count(),
         "events": db.query(SwimEvent).count(),
-        "registrations": db.query(SwimResult).filter(SwimResult.entrytime != None).count(),
+        "registrations": db.query(SwimResult).count(),
         "best_times": bt_count,
     }
 

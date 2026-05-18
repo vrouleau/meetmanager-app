@@ -54,10 +54,8 @@ def generate_lxf(db: Session) -> bytes:
     cfg = db.query(BsGlobal).get("age_base_date")
     age_base_date = cfg.data if cfg and cfg.data else date(date.today().year, 12, 31).isoformat()
 
-    # Get all registrations (swimresults with entrytime set)
-    regs = db.query(SwimResult).filter(
-        SwimResult.entrytime != None
-    ).options(
+    # Get all registrations
+    regs = db.query(SwimResult).options(
         joinedload(SwimResult.athlete).joinedload(Athlete.club),
         joinedload(SwimResult.event).joinedload(SwimEvent.agegroups),
         joinedload(SwimResult.event).joinedload(SwimEvent.swimstyle),

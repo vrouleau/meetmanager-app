@@ -58,7 +58,7 @@ def _club_line_items(db: Session, club: Club, meet_fees: dict[str, int]) -> list
         .join(SwimEvent, SwimResult.swimeventid == SwimEvent.swimeventid)
         .join(Athlete, SwimResult.athleteid == Athlete.athleteid)
         .join(SwimStyle, SwimEvent.swimstyleid == SwimStyle.swimstyleid)
-        .filter(Athlete.clubid == club.clubid, SwimResult.entrytime != None)
+        .filter(Athlete.clubid == club.clubid)
         .all()
     )
 
@@ -111,7 +111,7 @@ def _club_line_items(db: Session, club: Club, meet_fees: dict[str, int]) -> list
         athlete_count = (
             db.query(Athlete.athleteid)
             .join(SwimResult, SwimResult.athleteid == Athlete.athleteid)
-            .filter(Athlete.clubid == club.clubid, SwimResult.entrytime != None)
+            .filter(Athlete.clubid == club.clubid)
             .distinct()
             .count()
         )
@@ -120,8 +120,7 @@ def _club_line_items(db: Session, club: Club, meet_fees: dict[str, int]) -> list
             .join(SwimResult, SwimResult.swimeventid == SwimEvent.swimeventid)
             .join(Athlete, SwimResult.athleteid == Athlete.athleteid)
             .join(SwimStyle, SwimEvent.swimstyleid == SwimStyle.swimstyleid)
-            .filter(Athlete.clubid == club.clubid, SwimStyle.relaycount > 1,
-                    SwimResult.entrytime != None)
+            .filter(Athlete.clubid == club.clubid, SwimStyle.relaycount > 1)
             .distinct()
             .count()
         )

@@ -1030,7 +1030,6 @@ def create_registration(data: RegistrationCreate, request: Request, db: Session 
             SwimResult.swimeventid == event_id,
             SwimResult.athleteid.in_(club_athlete_ids),
             SwimResult.athleteid != athlete_id,
-            SwimResult.entrytime != None,
         ).first()
         if existing_relay:
             raise HTTPException(409, "Relay already has a registration from this club")
@@ -1158,12 +1157,23 @@ async def upload_results(file: UploadFile = File(...), db: Session = Depends(get
 
 @router.get("/status")
 def status(db: Session = Depends(get_db)):
+    import json as _json
+    # Count total best time entries (each athlete can have multiple style/course pairs)
+    bt_count = 0
+    bt_entries = db.query(BsGlobal).filter(BsGlobal.name.like("bt_%")).all()
+    for entry in bt_entries:
+        try:
+            data = _json.loads(entry.data)
+            for style_data in data.values():
+                bt_count += len(style_data)  # count each course entry
+        except (ValueError, TypeError):
+            pass
     return {
         "clubs": db.query(Club).count(),
         "athletes": db.query(Athlete).count(),
         "events": db.query(SwimEvent).count(),
         "registrations": db.query(SwimResult).filter(SwimResult.entrytime != None).count(),
-        "best_times": db.query(BsGlobal).filter(BsGlobal.name.like("bt_%")).count(),
+        "best_times": bt_count,
     }
 
 

@@ -16,20 +16,9 @@ export default function Admin() {
 
   useEffect(() => { loadStatus(); loadClubs(); loadOrganizer() }, [])
 
-  async function loadStatus() {
-    const r = await api.get('/status')
-    setStatus(r.data)
-  }
-
-  async function loadClubs() {
-    const r = await api.get('/clubs')
-    setClubs(r.data)
-  }
-
-  async function loadOrganizer() {
-    const r = await api.get('/admin/organizer')
-    setOrganizer(r.data)
-  }
+  async function loadStatus() { const r = await api.get('/status'); setStatus(r.data) }
+  async function loadClubs() { const r = await api.get('/clubs'); setClubs(r.data) }
+  async function loadOrganizer() { const r = await api.get('/admin/organizer'); setOrganizer(r.data) }
 
   async function uploadEntries(e) {
     const file = e.target.files[0]
@@ -50,10 +39,7 @@ export default function Admin() {
       .replace('%athletes_total%', preview.athletes_in_file)
       .replace('%clubs%', preview.clubs_new)
       .replace('%athletes%', preview.athletes_new)
-    if (!confirm(prompt)) {
-      e.target.value = ''
-      return
-    }
+    if (!confirm(prompt)) { e.target.value = ''; return }
     const fd = new FormData()
     fd.append('file', file)
     setMsg('Uploading entries...')
@@ -61,46 +47,15 @@ export default function Admin() {
     const d = r.data
     setMsg(`Done: ${d.clubs_added} clubs, ${d.athletes_added} athletes, ${d.athletes_created || 0} new from results, ${d.times_updated} best times`)
     e.target.value = ''
-    loadStatus()
-    loadClubs()
+    loadStatus(); loadClubs()
   }
-
-  async function uploadResults(e) {
-    const file = e.target.files[0]
-    if (!file) return
-    const fd = new FormData()
-    fd.append('file', file)
-    setMsg('Uploading results...')
-    const r = await api.post('/upload/results', fd)
-    const d = r.data
-    setMsg(`Done: ${d.clubs_added} clubs, ${d.athletes_added} athletes, ${d.athletes_created || 0} new from results, ${d.times_updated} best times`)
-    loadStatus()
-  }
-
-  function exportLxf() {
-    fetch('/api/export', { headers: { 'X-Club-Pin': localStorage.getItem('pin') || '' } })
-      .then(r => { if (!r.ok) throw new Error(r.status); return r.blob() })
-      .then(blob => {
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = 'inscriptions_bundle.zip'
-        a.click()
-        URL.revokeObjectURL(url)
-      })
-      .catch(e => setMsg('Export error: ' + e.message))
-  }
-
 
   async function addClub() {
     if (!newClubName.trim() || !newClubCode.trim()) return
     try {
       await api.post('/clubs', { name: newClubName.trim(), code: newClubCode.trim() || undefined, email: newClubEmail.trim() || undefined })
-      setNewClubName('')
-      setNewClubCode('')
-      setNewClubEmail('')
-      loadClubs()
-      loadStatus()
+      setNewClubName(''); setNewClubCode(''); setNewClubEmail('')
+      loadClubs(); loadStatus()
       setMsg(lang === 'fr' ? 'Club ajouté' : 'Club added')
     } catch (e) { setMsg(e.detail || e.message || 'Error') }
   }
@@ -112,181 +67,190 @@ export default function Admin() {
     if (!confirm(message)) return
     try {
       await api.delete(`/clubs/${club.id}`)
-      loadClubs()
-      loadStatus()
+      loadClubs(); loadStatus()
       setMsg(`${club.name} ${lang === 'fr' ? 'supprimé' : 'deleted'}`)
     } catch (e) { setMsg(e.detail || e.message || 'Error') }
   }
 
   async function updateEmail(club, email) {
-    await api.put(`/clubs/${club.id}`, { email: email })
+    await api.put(`/clubs/${club.id}`, { email })
     loadClubs()
   }
 
   return (
-    <div className="p-4 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4 text-balance">{t.admin}</h1>
+    <div className="flex flex-col h-full">
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 px-3 py-2 bg-white border-b border-gray-300 shrink-0 flex-wrap">
+        {status && (
+          <span className="text-xs text-gray-600">
+            {status.clubs} clubs · {status.athletes} athletes · {status.events} events · {status.registrations} reg. · {status.best_times} BT
+          </span>
+        )}
+        <div className="flex-1" />
+        {organizer?.club_name && (
+          <span className="text-xs text-purple-700">
+            {t.currently_organized_by} <strong>{organizer.club_name}</strong>
+          </span>
+        )}
+        {msg && <span className="text-xs text-green-700">{msg}</span>}
+      </div>
 
-      {status && (
-        <div className="mb-4 p-3 bg-gray-100 rounded text-sm">
-          <p>Clubs: {status.clubs} | Athletes: {status.athletes} | Events: {status.events}</p>
-          <p>Registrations: {status.registrations} | Best Times: {status.best_times}</p>
-        </div>
-      )}
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-3 space-y-3">
+        {/* Upload Lenex */}
+        <Section title={t.upload_lxf} desc={t.upload_lxf_desc}>
+          <input type="file" accept=".lxf" onChange={uploadEntries}
+            className="file:border file:border-gray-300 file:rounded file:px-2 file:py-0.5 file:text-xs file:bg-white file:cursor-pointer text-xs" />
+        </Section>
 
-      <div className="space-y-4">
-        <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">{t.upload_lxf}</h2>
-          <p className="text-sm text-gray-600 mb-2 text-pretty">{t.upload_lxf_desc}</p>
-          <input type="file" accept=".lxf" onChange={uploadEntries} className="file:border file:border-gray-300 file:rounded file:px-3 file:py-1.5 file:text-sm file:bg-white file:cursor-pointer" />
-        </div>
-
-        <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">{t.change_admin_pin}</h2>
+        {/* Change Admin PIN */}
+        <Section title={t.change_admin_pin}>
           <form onSubmit={async e => {
             e.preventDefault()
             const newPin = e.target.pin.value
             if (newPin.length < 4) { setMsg('PIN must be at least 4 characters'); return }
             await api.post('/admin/change-pin', { pin: newPin })
             localStorage.setItem('pin', newPin)
-            setMsg('Admin PIN changed. Use new PIN next login.')
+            setMsg('Admin PIN changed.')
             e.target.reset()
-          }} className="flex gap-2">
-            <input name="pin" type="text" placeholder="New PIN" className="border p-2 rounded w-32" required />
-            <button type="submit" className="bg-gray-700 text-white px-4 py-2 rounded">Change</button>
+          }} className="flex gap-2 items-center">
+            <input name="pin" type="text" placeholder="New PIN"
+              className="border border-gray-300 px-2 py-0.5 rounded text-xs w-28" required />
+            <button type="submit" className="px-3 py-1 bg-gray-700 text-white text-xs rounded hover:bg-gray-800">Change</button>
           </form>
-        </div>
+        </Section>
 
-        <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">{t.regen_pins}</h2>
-          <p className="text-sm text-gray-600 mb-2 text-pretty">{t.regen_pins_desc}</p>
+        {/* Regenerate PINs */}
+        <Section title={t.regen_pins} desc={t.regen_pins_desc}>
           <button onClick={async () => {
-            if (!confirm('Regenerate ALL club PINs? Coaches will need new PINs.')) return
+            if (!confirm('Regenerate ALL club PINs?')) return
             const r = await api.post('/clubs/regenerate-pins', {})
             setMsg(`Regenerated PINs for ${r.data.regenerated} clubs`)
             loadStatus()
-          }} className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-600/85">
+          }} className="px-3 py-1 bg-orange-600 text-white text-xs rounded hover:bg-orange-700">
             Regenerate PINs
           </button>
-        </div>
+        </Section>
 
-        <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">{t.flush_meet}</h2>
-          <p className="text-sm text-gray-600 mb-2 text-pretty">{t.flush_meet_desc}</p>
+        {/* Flush Meet */}
+        <Section title={t.flush_meet} desc={t.flush_meet_desc}>
           <button onClick={async () => {
             if (!confirm(t.confirm_flush_meet)) return
             const r = await api.delete('/registrations')
             setMsg(`${t.flush_meet}: ${r.data.deleted} registrations deleted`)
-            loadStatus()
-            loadOrganizer()
-          }} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-600/85">
+            loadStatus(); loadOrganizer()
+          }} className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">
             {t.flush_meet}
           </button>
-        </div>
+        </Section>
 
-        {/* Set Meet Organizer */}
-        <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">{t.set_organizer_title}</h2>
-          {organizer?.club_name && (
-            <p className="text-sm mb-2 text-purple-700 font-medium">
-              {t.currently_organized_by} <strong>{organizer.club_name}</strong>
-              {(() => { const c = clubs.find(c => c.id === organizer.club_id); return c ? ` (${c.invite_send_count || 0} invite${(c.invite_send_count || 0) !== 1 ? 's' : ''} sent)` : '' })()}
-            </p>
-          )}
+        {/* Set Organizer */}
+        <Section title={t.set_organizer_title}>
           {organizer?.club_id && (
-            <button className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-600/85 mb-2"
-              onClick={async () => {
-                try {
-                  await api.post(`/clubs/${organizer.club_id}/send-pin`, { lang })
-                  setMsg(`${t.send_invitation}: ${organizer.club_name} ✓`)
-                  loadClubs()
-                } catch (e) { setMsg(e.response?.data?.detail || e.message || 'Error') }
-              }}>
-              {t.send_invitation}
-            </button>
-          )}
-          {clubs.length > 0 && (
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <select
-                className="border p-2 rounded sm:w-64"
-                value={selectedClubId}
-                onChange={e => setSelectedClubId(e.target.value)}>
-                <option value="">{lang === 'fr' ? '— Choisir un club —' : '— Select a club —'}</option>
-                {clubs.map(club => (
-                  <option key={club.id} value={club.id}>{club.name}</option>
-                ))}
-              </select>
-              {selectedClubId && (
-                <button className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-600/85"
-                  onClick={async () => {
-                    const club = clubs.find(c => String(c.id) === String(selectedClubId))
-                    try {
-                      await api.post('/admin/set-organizer', { club_id: Number(selectedClubId) })
-                      setMsg(`${club?.name} ${t.set_as_organizer_done}`)
-                      loadOrganizer()
-                    } catch (e) { setMsg(e.detail || e.message || 'Error') }
-                  }}>
-                  {t.set_as_organizer}
-                </button>
-              )}
+            <div className="flex items-center gap-2 mb-2">
+              <button className="px-3 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700"
+                onClick={async () => {
+                  try {
+                    await api.post(`/clubs/${organizer.club_id}/send-pin`, { lang })
+                    setMsg(`${t.send_invitation}: ${organizer.club_name} ✓`)
+                    loadClubs()
+                  } catch (e) { setMsg(e.response?.data?.detail || e.message || 'Error') }
+                }}>
+                {t.send_invitation} → {organizer.club_name}
+              </button>
             </div>
           )}
-        </div>
+          <div className="flex items-center gap-2">
+            <select className="border border-gray-300 px-2 py-0.5 rounded text-xs"
+              value={selectedClubId} onChange={e => setSelectedClubId(e.target.value)}>
+              <option value="">{lang === 'fr' ? '— Choisir —' : '— Select —'}</option>
+              {clubs.map(club => <option key={club.id} value={club.id}>{club.name}</option>)}
+            </select>
+            {selectedClubId && (
+              <button className="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700"
+                onClick={async () => {
+                  const club = clubs.find(c => String(c.id) === String(selectedClubId))
+                  try {
+                    await api.post('/admin/set-organizer', { club_id: Number(selectedClubId) })
+                    setMsg(`${club?.name} ${t.set_as_organizer_done}`)
+                    loadOrganizer()
+                  } catch (e) { setMsg(e.detail || e.message || 'Error') }
+                }}>
+                {t.set_as_organizer}
+              </button>
+            )}
+          </div>
+        </Section>
 
         {/* Club Manager */}
-        <div className="border p-4 rounded">
-          <h2 className="font-semibold mb-2">{t.club_manager}</h2>
-          <div className="max-h-72 overflow-y-auto border rounded mb-3">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b bg-gray-50">
-                <th className="p-2 text-left">{t.club}</th>
-                <th className="p-2 text-left">Code</th>
-                <th className="p-2 text-left">Email</th>
-                <th className="p-2 w-20"></th>
-              </tr></thead>
+        <div className="border border-gray-300 rounded bg-white">
+          <div className="px-3 py-1.5 bg-gray-100 border-b border-gray-300 flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-700">{t.club_manager}</span>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead className="sticky top-0 bg-gray-50 z-10">
+                <tr>
+                  <th className="px-2 py-1 border-b border-gray-300 text-left font-medium">{t.club}</th>
+                  <th className="px-2 py-1 border-b border-gray-300 text-left font-medium">Code</th>
+                  <th className="px-2 py-1 border-b border-gray-300 text-left font-medium">Email</th>
+                  <th className="px-2 py-1 border-b border-gray-300 w-14"></th>
+                </tr>
+              </thead>
               <tbody>
                 {clubs.map(c => (
-                  <tr key={c.id} className="border-b hover:bg-gray-50">
-                    <td className="p-2">{c.name} <span className="text-xs text-gray-400">({c.athlete_count}, PIN: {c.pin || '—'})</span></td>
-                    <td className="p-2 text-xs text-gray-500">{c.code || '—'}</td>
-                    <td className="p-2">
-                      <input type="email" className="border p-1 rounded w-full text-sm"
+                  <tr key={c.id} className="border-b border-gray-200 hover:bg-blue-50">
+                    <td className="px-2 py-0.5">
+                      {c.name} <span className="text-gray-400">({c.athlete_count}, PIN: {c.pin || '—'})</span>
+                    </td>
+                    <td className="px-2 py-0.5 text-gray-500">{c.code || '—'}</td>
+                    <td className="px-2 py-0.5">
+                      <input type="email" className="border border-gray-300 px-1 py-0.5 rounded text-xs w-full"
                         defaultValue={c.email}
                         onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
                         onBlur={e => { if (e.target.value !== c.email) updateEmail(c, e.target.value) }}
                         placeholder="email@example.com" />
                     </td>
-                    <td className="p-2 text-center">
-                      <button onClick={() => deleteClub(c)}
-                        className="text-red-600 hover:text-red-800 text-xs font-medium">
-                        {t.delete}
-                      </button>
+                    <td className="px-2 py-0.5 text-center">
+                      <button onClick={() => deleteClub(c)} className="text-red-500 hover:underline">{t.delete}</button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <div className="flex gap-2">
-            <input type="text" className="border p-2 rounded flex-1" placeholder={t.club_name_placeholder}
+          <div className="px-3 py-2 border-t border-gray-200 flex gap-2 items-center">
+            <input type="text" className="border border-gray-300 px-2 py-0.5 rounded text-xs flex-1" placeholder={t.club_name_placeholder}
               value={newClubName} onChange={e => setNewClubName(e.target.value)} />
-            <input type="text" className="border p-2 rounded w-24" placeholder="Code"
+            <input type="text" className="border border-gray-300 px-2 py-0.5 rounded text-xs w-20" placeholder="Code"
               value={newClubCode} onChange={e => setNewClubCode(e.target.value)} />
-            <input type="email" className="border p-2 rounded flex-1" placeholder="Email"
+            <input type="email" className="border border-gray-300 px-2 py-0.5 rounded text-xs flex-1" placeholder="Email"
               value={newClubEmail} onChange={e => setNewClubEmail(e.target.value)} />
-            <button onClick={addClub} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-600/85">
+            <button onClick={addClub} className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">
               {t.add}
             </button>
           </div>
         </div>
       </div>
 
-      {msg && <p className="mt-4 text-green-700">{msg}</p>}
+      {/* Footer */}
+      <div className="px-3 py-1 border-t border-gray-300 bg-gray-50 text-center text-xs text-gray-400 shrink-0">
+        build: {BUILD_TIMESTAMP}
+      </div>
+    </div>
+  )
+}
 
-      <footer className="mt-8 pt-4 border-t text-xs text-gray-400 text-center">
-        Source : <a href="https://github.com/vrouleau/meetmanager-app" target="_blank" rel="noopener" className="underline">github.com/vrouleau/meetmanager-app</a>
-        {' '}— build : {BUILD_TIMESTAMP}
-      </footer>
+function Section({ title, desc, children }) {
+  return (
+    <div className="border border-gray-300 rounded bg-white">
+      <div className="px-3 py-1.5 bg-gray-100 border-b border-gray-300">
+        <span className="text-xs font-semibold text-gray-700">{title}</span>
+        {desc && <p className="text-xs text-gray-500 mt-0.5">{desc}</p>}
+      </div>
+      <div className="px-3 py-2">
+        {children}
+      </div>
     </div>
   )
 }

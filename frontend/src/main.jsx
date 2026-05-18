@@ -19,24 +19,67 @@ function AuthLayout({ children, canOrganizer, canAdmin, meetName, toggle, lang, 
   const location = useLocation()
   const standalone = location.pathname === '/best-times'
   if (standalone) return children
+
+  const tabs = [
+    { to: '/', label: t.athletes, show: true },
+    { to: '/organizer', label: t.organizer, show: canOrganizer },
+    { to: '/admin', label: t.admin, show: canAdmin },
+    { to: '/data-management', label: t.data_management, show: canAdmin },
+  ]
+
   return (
-    <>
-      <nav className="bg-gray-800 text-white p-3 flex gap-4 items-center">
-        <Link to="/" className="hover:underline">{t.athletes}</Link>
-        {canOrganizer && <Link to="/organizer" className="hover:underline">{t.organizer}</Link>}
-        {canAdmin && <Link to="/admin" className="hover:underline">{t.admin}</Link>}
-        {canAdmin && <Link to="/data-management" className="hover:underline">{t.data_management}</Link>}
-        <div className="flex-1" />
-        {meetName && <span className="font-semibold bg-blue-600 px-2 py-1 rounded text-sm">{meetName}</span>}
-        <button onClick={toggle} className="text-xs bg-gray-600 px-2 py-1 rounded">
-          {lang === 'fr' ? 'EN' : 'FR'}
-        </button>
-        <span className="text-sm text-gray-300">{auth.club_name}</span>
-        <button onClick={logout} className="text-sm text-red-300 hover:underline">{t.logout}</button>
-      </nav>
-      {children}
+    <div className="flex flex-col min-h-screen bg-gray-100">
+      {/* Title bar */}
+      <div className="flex items-center h-8 bg-gray-800 text-white text-xs select-none shrink-0">
+        <span className="px-3 font-semibold text-gray-300">SplashTeam</span>
+        <span className="text-gray-500 mr-1">|</span>
+        <span className="text-gray-300 truncate mr-4">
+          {meetName || 'Gestion des inscriptions'}
+        </span>
+        <div className="ml-auto flex items-center gap-2 pr-3">
+          <span className="text-gray-400 text-xs">{auth.club_name}</span>
+          <button
+            onClick={() => { const next = lang === 'fr' ? 'en' : 'fr'; toggle() }}
+            className={`px-2 py-0.5 rounded text-xs font-medium border transition-colors ${
+              lang === 'fr'
+                ? 'bg-blue-600 border-blue-500 text-white'
+                : 'border-gray-600 text-gray-400 hover:text-gray-200 hover:border-gray-400'
+            }`}
+          >
+            {lang === 'fr' ? 'FR' : 'EN'}
+          </button>
+          <button onClick={logout} className="text-red-400 hover:text-red-300 text-xs">{t.logout}</button>
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex h-8 bg-gray-700 shrink-0 border-b border-gray-900">
+        {tabs.filter(tab => tab.show).map((tab) => {
+          const active = location.pathname === tab.to ||
+            (tab.to === '/' && location.pathname.startsWith('/athletes'))
+          return (
+            <Link
+              key={tab.to}
+              to={tab.to}
+              className={`px-5 h-full flex items-center text-xs font-medium border-r border-gray-600 transition-colors ${
+                active
+                  ? 'bg-white text-gray-900 shadow-inner'
+                  : 'text-gray-300 hover:bg-gray-600 hover:text-white'
+              }`}
+            >
+              {tab.label}
+            </Link>
+          )
+        })}
+      </div>
+
+      {/* Page content */}
+      <div className="flex-1 overflow-auto">
+        {children}
+      </div>
+
       <Footer showUsage={canOrganizer && location.pathname === '/organizer'} />
-    </>
+    </div>
   )
 }
 

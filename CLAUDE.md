@@ -1,211 +1,132 @@
-# Meet Manager — meetmanager-app
+# SplashTeam — AI Context
 
-Web application for lifesaving meet registration. Clubs log in with a PIN, register their athletes for events. The admin manages the meet, designates an organizer, and generates Stripe invoices. The organizer handles day-to-day meet ops (upload, invites, closure date).
+## What this app is
+Web-based registration portal for lifesaving competitions. Coaches log in with a PIN, register athletes for events, and manage entry times. Integrates with SPLASH Meet Manager via Lenex (.lxf) import/export.
+
+## How to run
+```bash
+cp .env_template .env   # set SECRET_KEY
+docker compose up --build -d
+# Frontend: http://localhost:8001  Admin PIN: 314159
+```
 
 ## Stack
+- **Backend**: Python 3.12 / FastAPI + SQLAlchemy 2.0 + PostgreSQL 16
+- **Frontend**: React 19 + Vite 6 + Tailwind CSS 4 + React Router 7
+- **Deploy**: Docker Compose (backend uvicorn, frontend nginx, postgres)
+- **CI/CD**: GitHub Actions → ghcr.io (tag-triggered)
 
-- **Backend**: FastAPI (Python 3.12) + SQLAlchemy 2.0 + PostgreSQL 16
-- **Frontend**: React 18 + Vite + Tailwind CSS
-- **Deployment**: Docker Compose (`docker-compose.yml` at repo root)
-- **Email**: Resend API (via `httpx`)
-- **Billing**: Stripe Connect + reportlab PDF invoices
+## Database Schema
 
-## Repo layout
+Uses the **full Splash Meet Manager PostgreSQL schema** — every column matches the real Splash database so the app can coexist with Splash on the same DB.
 
-```
-meetmanager-app/
-├── backend/
-│   └── app/
-│       ├── main.py            # FastAPI app, CORS, DB init
-│       ├── models.py          # SQLAlchemy models
-│       ├── database.py        # DB engine, get_db dependency
-│       ├── meet_parser.py     # Parse SPLASH .lxf meet export → ParsedMeet dataclass
-│       ├── events.py          # Load ParsedMeet events into DB
-│       ├── seed.py            # Import clubs/athletes from Lenex .lxf entries file
-│       ├── best_times.py      # Import best times from Lenex entries/results .lxf
-│       ├── export.py          # Generate registrations .lxf (Lenex output)
-│       ├── invoices.py        # Stripe invoices + PDF generation (reportlab)
-│       └── routers/
-│           └── api.py         # All REST endpoints (prefix: /api)
-│   └── scripts/
-│       ├── simulate_results.bat  # Windows launcher for VBS script
-│       └── simulate_results.vbs  # Simulate results in SPLASH (included in export .zip)
-├── frontend/src/
-│   ├── main.jsx               # React entry, router, nav (role-based visibility)
-│   ├── i18n.jsx               # Bilingual (fr/en) translations via LangProvider / useLang()
-│   ├── api.js                 # Axios instance (base /api)
-│   ├── pages/
-│   │   ├── Admin.jsx          # Admin panel (entries upload, results upload, set organizer, flush meet, change PIN, regen PINs)
-│   │   ├── Organizer.jsx      # Organizer panel (meet upload, meet template download, closure date, fee summary, team invites, Stripe connect/disconnect, invoice PDF download, export zip)
-│   │   ├── DataManagement.jsx # Admin-only: club merging, style merging, export all entries
-│   │   ├── Athletes.jsx       # Club coach view: athlete list
-│   │   ├── Register.jsx       # Per-athlete event registration
-│   │   ├── Login.jsx          # PIN entry (includes link to /self-invite)
-│   │   ├── Secret.jsx         # One-time PIN reveal page (/secret/:token)
-│   │   └── SelfInvite.jsx     # Public self-invite page (/self-invite)
-│   └── buildInfo.js           # Build timestamp injected at build time
-├── quantum/
-│   └── LSTSTYLE.en-UK         # Swiss Timing Quantum style seed file
-├── docs/                      # Documentation (markdown + generated PDFs)
-│   ├── assets/                # Screenshots used in docs
-│   ├── workflow_en.md/pdf     # Quick-start workflow (English)
-│   ├── workflow_fr.md/pdf     # Quick-start workflow (French)
-│   ├── manual_en.md/pdf       # Full user manual (English)
-│   ├── manual_fr.md/pdf       # Full user manual (French)
-│   └── pdf-header.tex         # Pandoc LaTeX header for PDF generation
-├── tests/                     # Integration tests (real PostgreSQL)
-└── docker-compose.yml
-```
-
-## Roles
-
-| Role | Access |
+### Core tables
+| Table | Purpose |
 |---|---|
-| **admin** | Full access: all pages, set organizer, flush meet, invoices, change admin PIN |
-| **organizer** | A club coach whose club is flagged as organizer. Sees Athletes + Organizer pages. Can upload meet, set closure date, send invitations, invite all. Cannot edit other clubs' registrations. |
-| **coach** | Standard club login. Sees Athletes page (own club only). |
+| `swimstyle` | Stroke/distance definitions (swimstyleid PK) |
+| `club` | Teams/clubs (clubid PK) + extra: pin, email, stripe_account_id |
+| `athlete` | Competitors (athleteid PK, FK→club) |
+| `swimsession` | Competition sessions |
+| `swimevent` | Events (FK→swimsession, FK→swimstyle) |
+| `agegroup` | Age categories per event (FK→swimevent) |
+| `swimresult` | Entries/results (FK→athlete, FK→swimevent) |
+| `bsglobal` | Key-value config (name PK, data TEXT) |
+| `secret_links` | One-time PIN reveal links (team-specific) |
 
-## Data model
+### Registration model
+A registration = a `swimresult` row. Key fields:
+- `athleteid` — who
+- `swimeventid` — which event
+- `agegroupid` — which age category (nullable)
+- `entrytime` — entry time in ms (NULL = NT, still a valid registration)
+- `swimtime` — result time (NULL = not swum yet)
+- `qttime/qtcourse/qtdate/qtname` — qualifying time from previous meet
+- `age_code` — team-specific: "10-", "11-12", "13-14", "15-18", "Open", "Masters"
 
-| Table | Key columns |
+### Best times storage
+Stored as JSON in `bsglobal` rows keyed `bt_{athlete_id}`:
+```json
+{"506": {"LCM": {"time_ms": 65430, "source": "results.lxf", "date": "2025-03-15"}}}
+```
+
+### Key encoding conventions
+- Gender: 1=M, 2=F, 3=Mixed (smallint)
+- Course: 1=LCM(50m), 2=SCY(25yd), 3=SCM(25m)
+- Round: 1=PRE, 2=SEM, 4=FIN, 5=TIM/DirectFinal
+- Times: integer milliseconds
+- Booleans: char(1) 'T'/'F'
+- Fee: double precision (dollars) on swimevent
+
+### Team-specific columns (not in Splash)
+- `club.pin`, `club.email`, `club.stripe_account_id`, `club.invite_send_count`, `club.stripe_send_count`
+- `swimresult.age_code`, `swimresult.created_at`
+- `athlete.exception` ('X' for Masters)
+
+## Project structure
+```
+backend/app/
+  main.py            — FastAPI app, CORS, startup, audit middleware
+  models.py          — SQLAlchemy models (full Splash schema + extras)
+  database.py        — Engine + get_db()
+  routers/api.py     — All endpoints (~1200 lines)
+  meet_parser.py     — Parse .lxf → ParsedMeet dataclass
+  events.py          — Load events from ParsedMeet into DB
+  seed.py            — Import clubs + athletes from Lenex
+  best_times.py      — Best times (JSON in bsglobal, import from Lenex)
+  export.py          — Generate registrations .lxf
+  export_entries.py  — Generate entries .lxf (clubs + athletes + BT)
+  invoices.py        — Stripe Connect + PDF invoices
+
+frontend/src/
+  main.jsx           — App shell (dark title bar, tab nav, file menu)
+  i18n.jsx           — FR/EN translations
+  api.js             — fetch wrapper with X-Club-Pin header
+  pages/
+    Athletes.jsx     — Compact table, club filter, inline add
+    Register.jsx     — Athlete header + event tables (checkbox + times)
+    Admin.jsx        — Uploads, PIN mgmt, organizer, club CRUD
+    Organizer.jsx    — Meet upload, closure, invites, Stripe, fees
+    DataManagement.jsx — Club/style merge, entries export
+    Login.jsx        — PIN dialog
+    Secret.jsx       — One-time PIN reveal
+    SelfInvite.jsx   — Public self-invite
+```
+
+## API contract (key endpoints)
+
+| Endpoint | Returns |
 |---|---|
-| `clubs` | id, name, code (unique — import key), nation, pin (6-digit), admin_email, stripe_account_id |
-| `athletes` | id, first_name, last_name, gender, birthdate, license, exception ('X'=Masters), club_id |
-| `events` | id, splash_event_id, style_uid, style_name, distance, relay_count, gender, event_number, round, masters, fee_cents, session_id |
-| `age_groups` | id, event_id, splash_agegroup_id, age_min, age_max |
-| `registrations` | id, athlete_id, event_id, age_code, entry_time_ms |
-| `best_times` | id, athlete_id, style_uid, time_ms, course (LCM/SCM), recorded_on (date of source meet; shared across LCM/SCM for same style) |
-| `secret_links` | id, token (UUID), club_id, pin_encrypted, expires_at, viewed, lang |
-| `app_config` | key (PK), value — key-value store for meet metadata |
+| `POST /api/auth` | `{role, club_id, club_name}` |
+| `GET /api/athletes` | `[{id, first_name, last_name, gender, birthdate, license, club, club_id}]` |
+| `GET /api/clubs` | `[{id, name, code, athlete_count, pin?, email?, ...}]` |
+| `GET /api/events` | `[{id, style_uid, style_name, distance, relay_count, gender, event_number, round, masters}]` |
+| `GET /api/athletes/{id}/registration` | `{athlete, suggested_age_code, meet_course, individual_events, relay_events, club_athletes}` |
+| `POST /api/registrations` | `{id, updated}` — body: `{athlete_id, event_id, age_code, entry_time_ms}` |
+| `DELETE /api/registrations/{id}` | `{deleted: true}` |
+| `GET /api/status` | `{clubs, athletes, events, registrations, best_times}` |
 
-### AppConfig keys
-
-| Key | Value |
-|---|---|
-| `meet_filename` | original .lxf filename |
-| `meet_uploaded_at` | ISO datetime |
-| `meet_name` | meet name from Lenex |
-| `meet_course` | LCM / SCM |
-| `meet_masters` | T / F |
-| `meet_currency` | currency code (CAD, etc.) |
-| `meet_fees_json` | JSON: `{"CLUB": cents, "ATHLETE": cents, ...}` |
-| `closure_date` | ISO date or "" |
-| `admin_pin` | admin PIN override |
-| `organizer_club_id` | club.id of the designated organizer |
-
-## Environment variables (`.env`)
-
-```
-ADMIN_PIN=          # default 314159
-RESEND_API_KEY=     # for invite emails
-RESEND_FROM_EMAIL=
-APP_BASE_URL=       # public URL for links in emails
-SECRET_KEY=         # Fernet encryption key for PIN in secret links
-STRIPE_API_KEY=     # Stripe secret key for invoice generation
-DATABASE_URL=       # set automatically by Docker Compose
-MEET_TEMPLATE=      # path to meet template .smb (default: /app/templates/meet.smb)
-BEST_TIME_MAX_AGE_MONTHS=  # months before a best time is considered stale (default: 18)
-```
-
-## API endpoints (all `/api/...`)
-
-| Method | Path | Purpose |
-|---|---|---|
-| POST | `/auth` | Validate PIN → role (admin/organizer/coach) + club info |
-| POST | `/upload/meet` | Upload SPLASH meet .lxf → load event structure |
-| GET | `/meet-info` | Meet metadata, fees, event list |
-| PUT | `/closure-date` | Set entry deadline |
-| GET | `/clubs` | List clubs |
-| POST | `/clubs` | Create club |
-| PUT | `/clubs/:id` | Update club (admin_email) |
-| DELETE | `/clubs/:id` | Delete club + athletes + registrations |
-| POST | `/clubs/:id/reset-pin` | Reset single club PIN |
-| POST | `/clubs/:id/send-pin` | Send invite email with one-time PIN link |
-| POST | `/clubs/:id/create-invoice` | Create Stripe draft invoice for one club |
-| GET | `/clubs/:id/invoice-total` | Get invoice total (cents) for one club |
-| GET | `/clubs/:id/invoice-pdf` | Download PDF invoice for one club |
-| POST | `/clubs/:id/invoice` | Send Stripe invoice to one club (via connected account) |
-| GET | `/stripe/status` | Check if organizer Stripe account is connected |
-| POST | `/stripe/connect` | Start Stripe Connect OAuth flow |
-| POST | `/stripe/disconnect` | Disconnect organizer Stripe account |
-| GET | `/athletes` | List athletes (optional `?club_id=`) |
-| POST | `/athletes` | Create athlete |
-| PUT | `/athletes/:id` | Update athlete |
-| DELETE | `/athletes/:id` | Delete athlete + registrations |
-| GET | `/athletes/:id/registration` | Full registration state for athlete |
-| POST | `/registrations` | Register athlete for event |
-| DELETE | `/registrations/:id` | Remove registration |
-| DELETE | `/registrations` | **Flush meet**: delete registrations + events + meet config + organizer designation |
-| POST | `/upload/preview` | Preview Lenex .lxf import (count new clubs/athletes) |
-| POST | `/upload/entries` | Import clubs + athletes + best times from Lenex; also loads events/age groups/fees if none exist |
-| POST | `/upload/results` | Import best times from results Lenex |
-| GET | `/export` | Download registrations .lxf + simulate scripts as .zip |
-| GET | `/export/entries` | Export all clubs/athletes/best times as Lenex .lxf (seed for next meet) |
-| GET | `/export/meet-smb` | Download meet template .smb (primary template; preserves combined-event definitions) |
-| GET | `/events` | List events |
-| GET | `/status` | DB counts |
-| POST | `/clubs/regenerate-pins` | Regenerate all club PINs |
-| POST | `/admin/change-pin` | Change admin PIN |
-| POST | `/admin/set-organizer` | Designate a club as organizer (body: `{club_id}`) |
-| GET | `/admin/organizer` | Return current organizer club info |
-| POST | `/invoices` | Create Stripe draft invoices for all clubs |
-| POST | `/organizer/clubs/invite-all` | Send invitation to all clubs with email set (body: `{lang}`) |
-| POST | `/secret/:token` | Reveal PIN via one-time token |
-| GET | `/self-invite/clubs` | Public: list clubs with admin email (for self-invite dropdown) |
-| POST | `/self-invite` | Public: club requests own invite email (same flow as organizer send) |
-| GET | `/data-management/styles` | List all distinct event style UIDs + names |
-| POST | `/data-management/merge-clubs` | Merge duplicate clubs (body: `[{from_id, to_id}]`) |
-| POST | `/data-management/merge-styles` | Merge diverging style UIDs, keeping faster best times |
-
-## Key behaviours and design rules
-
-**Meet upload**: Replaces all event data and registrations. All metadata goes into `app_config`. **Do not add ALTER TABLE / migration logic** — just update the models directly, SQLAlchemy creates the table fresh on first run.
-
-**Flush meet** (`DELETE /registrations`): Deletes registrations, events, and meet-related AppConfig keys (meet_filename, meet_uploaded_at, meet_name, meet_course, meet_masters, meet_currency, meet_fees_json, closure_date, organizer_club_id). Keeps clubs, athletes, best times, PINs intact.
-
-**Organizer role**: A club whose `id` matches AppConfig `organizer_club_id`. Auth returns `role: "organizer"`. Organizer can upload meet, set closure date, send invitations, and invite all clubs. Cannot edit other clubs' registrations. Flush meet clears the organizer designation — it never carries over.
-
-**Age code routing**: `10-`, `11-12`, `13-14`, `15-18`, `Open`, `Masters`. Age computed against Dec 31 of the meet year. Masters is never auto-suggested.
-
-**Relay lock**: A club can only field one relay team per event. If any other athlete in the club has registered for a relay style, the style is locked for additional athletes.
-
-**Stripe invoicing** (`invoices.py`):
-- Meet-level fees: CLUB × 1, ATHLETE × distinct athletes with ≥1 registration, RELAY × distinct relay events entered, TEAM/LATEFEE/LSCMEETFEE × 1. Source: `meet_fees_json` AppConfig key.
-- Per-entry fees: resolved from paired TIM/PRE event structure. Fee events (round=1, masters=True) have `fee_cents > 0` but no registrations. Athletes register in the paired PRE event (round=2, masters=False, fee_cents=0). The fee is looked up from `event_number - 1`. Individual events bill per athlete; relay events bill once per team.
-- Items with qty ≤ 0 or cents = 0 are skipped.
-- Late fees (LATEFEE) exist in the data but are NOT conditionally gated.
-- PDF fallback: `generate_invoice_pdf()` produces a reportlab PDF when Stripe is not connected.
-- Stripe Connect: organizer connects their Stripe account via OAuth. Invoices are sent through the connected account.
-
-**i18n**: `useLang()` returns `{ t, lang, toggle }`. All UI strings must go through `t.key`. Both `fr` and `en` locales must be updated together in `i18n.jsx`.
-
-**Fee summary**: `FeeSummary` component in `Organizer.jsx` — scrollable monospace box showing meet-level fees + per-event fees.
-
-**Export**: `/export` returns a .zip containing the registrations .lxf plus `simulate_results.bat` and `simulate_results.vbs` (scripts for simulating results in SPLASH on meet day).
-
-**Entries export** (`/export/entries`): Each ENTRY includes a `MEETINFO` sub-element with `qualificationtime` (same value as `entrytime`), `course` (LCM/SCM), and `date` (from `best_times.recorded_on`, omitted if null). This serves as proof of qualification time in the Lenex file.
-
-**Best-time date tracking** (results import): Each time source carries its own `recorded_on`. Result times (`RESULT` elements) use the session date (or today as fallback). Entry/qualification times (`ENTRY` elements) use the `MEETINFO.date` attribute from the Lenex file. When the fastest time is selected, its associated date is passed to the upsert — so a qualification time from a previous meet keeps its original date rather than being stamped with the current meet's session date.
-
-**Meet template**: `/export/meet-smb` serves the file stored at `MEET_TEMPLATE` (env var, default `/app/templates/meet.smb`). The `.smb` is the primary template — it preserves SPLASH combined-event definitions (scoring rules) that are not exported in Lenex `.lxf` files. Organizer downloads it, opens it in SPLASH to restore the full meet structure including combined events, customises the meet, then exports a new invitation `.lxf` and uploads it back via `/upload/meet`.
-
-**Data Management** (`DataManagement.jsx`, admin-only):
-- Club merging: map duplicate/mismatched club names to a canonical club; all athletes and registrations are re-parented, the source club is deleted.
-- Style merging: consolidate diverging SPLASH style UIDs across imports; best times are merged, keeping the faster time per pool size.
-- Export entries (`/export/entries`): Lenex .lxf of all clubs, athletes, and best times — use as seed for the next season.
-
-## Running locally
-
-```bash
-docker compose up --build
-# Backend: http://localhost:8000
-# Frontend: http://localhost:8001
-```
+## Business rules
+- **±1 age group**: athlete can register in natural category ±1 step (frontend enforces)
+- **Relay lock**: one athlete per club per relay event (backend enforces, returns 409)
+- **Closure date**: coaches blocked after deadline (admin/organizer bypass)
+- **NT registrations**: entry_time_ms=NULL is valid — row existence = registration
+- **Best time expiry**: times older than BEST_TIME_MAX_AGE_MONTHS purged on page load
 
 ## Testing
-
 ```bash
-cd tests && pip install -r requirements-test.txt && pytest test_integration.py
+pip install -r tests/requirements-test.txt
+pytest tests/ -v   # 80 integration tests, hits real Docker stack
 ```
 
-Tests hit a real PostgreSQL instance — do not mock the database.
+## Releasing
+```bash
+git tag v2.1.0 && git push origin v2.1.0
+# GitHub Actions: test → build → push to ghcr.io
+```
+
+## UI style
+Matches sauvetagemeet (SplashMeet desktop app):
+- Dark gray-800 title bar + gray-700 tab navigation
+- Compact text-xs data tables with sticky headers
+- Modal dialogs (gray-700 header, white body)
+- Tailwind utility classes throughout

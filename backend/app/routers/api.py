@@ -719,7 +719,7 @@ def list_athletes(request: Request, club_id: int = None, db: Session = Depends(g
     return [{
         "id": a.athleteid, "first_name": a.firstname, "last_name": a.lastname,
         "gender": gender_to_str(a.gender),
-        "birthdate": str(a.birthdate) if a.birthdate else None,
+        "birthdate": str(a.birthdate.date()) if a.birthdate else None,
         "license": a.license, "club": a.club.name,
         "club_id": a.clubid,
     } for a in athletes]
@@ -962,7 +962,7 @@ def get_registration(athlete_id: int, db: Session = Depends(get_db)):
         "athlete": {
             "id": athlete.athleteid, "first_name": athlete.firstname,
             "last_name": athlete.lastname, "gender": gender_to_str(athlete.gender),
-            "birthdate": str(athlete.birthdate) if athlete.birthdate else "",
+            "birthdate": str(athlete.birthdate.date()) if athlete.birthdate else "",
             "license": athlete.license or "",
             "club": athlete.club.name, "club_id": athlete.clubid,
         },

@@ -131,7 +131,7 @@ def generate_lxf(db: Session) -> bytes:
                 "firstname": ath.firstname,
                 "lastname": ath.lastname,
                 "gender": gender_to_str(ath.gender),
-                "birthdate": str(ath.birthdate) if ath.birthdate else "",
+                "birthdate": str(ath.birthdate.date()) if ath.birthdate else "",
                 "license": ath.license or "",
             })
             if ath.exception:

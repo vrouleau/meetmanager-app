@@ -65,89 +65,93 @@ export default function Athletes({ role, clubId }) {
     reload()
   }
 
-
-
   return (
-    <div className="p-4 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4 text-balance">
-        {!canViewAll && clubs.find(c => String(c.id) === clubFilter)?.name
-          ? `${clubs.find(c => String(c.id) === clubFilter).name} — ${t.athletes}`
-          : t.athletes}
-      </h1>
-
-      {/* Club selector */}
-      <div className="flex gap-2 mb-4 items-center">
+    <div className="flex flex-col h-full">
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 px-3 py-2 bg-white border-b border-gray-300 shrink-0">
         {canViewAll ? (
           <select value={clubFilter} onChange={e => setClubFilter(e.target.value)}
-                  className="border p-2 rounded">
+                  className="border border-gray-300 px-2 py-1 rounded text-xs">
             {clubs.map(c => <option key={c.id} value={c.id}>{c.name} ({c.athlete_count})</option>)}
           </select>
         ) : (
-          <span className="font-semibold">{clubs.find(c => String(c.id) === clubFilter)?.name}</span>
+          <span className="text-xs font-semibold text-gray-700">
+            {clubs.find(c => String(c.id) === clubFilter)?.name}
+          </span>
         )}
 
-        {isAdmin && <button onClick={async () => {
-          if (!confirm('Reset PIN for this club?')) return
-          const r = await api.post(`/clubs/${clubFilter}/reset-pin`, {})
-          alert(`New PIN: ${r.data.pin}`)
-          api.get('/clubs').then(r => setClubs(r.data))
-        }} className="text-orange-600 text-sm hover:underline">{t.reset_pin}</button>}
+        {isAdmin && (
+          <button onClick={async () => {
+            if (!confirm('Reset PIN for this club?')) return
+            const r = await api.post(`/clubs/${clubFilter}/reset-pin`, {})
+            alert(`New PIN: ${r.data.pin}`)
+            api.get('/clubs').then(r => setClubs(r.data))
+          }} className="text-orange-600 text-xs hover:underline">{t.reset_pin}</button>
+        )}
+
         <div className="flex-1" />
-        <input type="text" placeholder={t.search} value={search}
-               onChange={e => setSearch(e.target.value)}
-               className="border p-2 rounded w-48" />
-      </div>
 
+        <div className="flex items-center gap-1">
+          <input type="text" placeholder={t.search} value={search}
+                 onChange={e => setSearch(e.target.value)}
+                 className="border border-gray-300 px-2 py-1 rounded text-xs w-48" />
+        </div>
 
-
-      {/* Add athlete */}
-      <div className="mb-3">
         <button onClick={() => setShowAddAthlete(!showAddAthlete)}
-                className="bg-green-600 text-white px-3 py-1 rounded text-sm">{t.add_athlete}</button>
+                className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">
+          {t.add_athlete}
+        </button>
+
+        <span className="text-gray-500 text-xs">{filtered.length} {t.athletes.toLowerCase()}</span>
       </div>
+
+      {/* Add athlete form */}
       {showAddAthlete && clubFilter && (
-        <form onSubmit={addAthlete} className="mb-4 p-3 border rounded bg-green-50 grid grid-cols-5 gap-2">
-          <input name="first_name" placeholder="First name" className="border p-1 rounded" required />
-          <input name="last_name" placeholder="Last name" className="border p-1 rounded" required />
-          <select name="gender" className="border p-1 rounded">
+        <form onSubmit={addAthlete} className="px-3 py-2 bg-green-50 border-b border-green-200 flex items-center gap-2">
+          <input name="first_name" placeholder={t.first_name} className="border border-gray-300 px-2 py-1 rounded text-xs w-28" required />
+          <input name="last_name" placeholder={t.last_name} className="border border-gray-300 px-2 py-1 rounded text-xs w-28" required />
+          <select name="gender" className="border border-gray-300 px-2 py-1 rounded text-xs">
             <option value="M">M</option><option value="F">F</option>
           </select>
-          <input name="birthdate" type="date" className="border p-1 rounded" />
-          <input name="license" placeholder="NRAN" className="border p-1 rounded" />
-          <button type="submit" className="bg-green-700 text-white px-3 rounded col-span-2">Save</button>
-          <button type="button" onClick={() => setShowAddAthlete(false)} className="text-gray-500">Cancel</button>
+          <input name="birthdate" type="date" className="border border-gray-300 px-2 py-1 rounded text-xs" />
+          <input name="license" placeholder="NRAN" className="border border-gray-300 px-2 py-1 rounded text-xs w-24" />
+          <button type="submit" className="px-3 py-1 bg-green-700 text-white text-xs rounded hover:bg-green-800">OK</button>
+          <button type="button" onClick={() => setShowAddAthlete(false)} className="text-gray-500 text-xs hover:underline">✕</button>
         </form>
       )}
 
       {/* Athletes table */}
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b font-semibold">
-            <td className="p-2">{t.last_name}, {t.first_name}</td>
-            <td className="p-2">{t.gender}</td>
-            <td className="p-2">{t.dob}</td>
-            <td className="p-2">{t.nran}</td>
-            <td className="p-2"></td>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map(a => (
-            <tr key={a.id} className="border-b hover:bg-gray-50">
-              <td className="p-2">{a.last_name}, {a.first_name}</td>
-              <td className="p-2">{a.gender}</td>
-              <td className="p-2">{a.birthdate}</td>
-              <td className="p-2">{a.license}</td>
-              <td className="p-2 flex gap-2">
-                <Link to={`/athletes/${a.id}/register`}
-                      className="text-blue-600 hover:underline">{t.edit}</Link>
-                <button onClick={() => deleteAthlete(a.id, `${a.first_name} ${a.last_name}`)}
-                        className="text-red-500 hover:underline text-xs">{t.delete}</button>
-              </td>
+      <div className="flex-1 overflow-auto">
+        <table className="w-full text-xs border-collapse">
+          <thead className="sticky top-0 bg-gray-100 z-10">
+            <tr>
+              <th className="text-left px-2 py-1.5 border-b border-gray-300 font-medium">{t.last_name}</th>
+              <th className="text-left px-2 py-1.5 border-b border-gray-300 font-medium">{t.first_name}</th>
+              <th className="text-center px-2 py-1.5 border-b border-gray-300 font-medium w-8">{t.gender}</th>
+              <th className="text-left px-2 py-1.5 border-b border-gray-300 font-medium">{t.dob}</th>
+              <th className="text-left px-2 py-1.5 border-b border-gray-300 font-medium">{t.nran}</th>
+              <th className="text-left px-2 py-1.5 border-b border-gray-300 font-medium w-20"></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="mt-2 text-gray-500">{filtered.length} athletes</p>
+          </thead>
+          <tbody>
+            {filtered.map(a => (
+              <tr key={a.id} className="border-b border-gray-200 hover:bg-blue-50 cursor-pointer">
+                <td className="px-2 py-1">{a.last_name}</td>
+                <td className="px-2 py-1">{a.first_name}</td>
+                <td className="px-2 py-1 text-center">{a.gender}</td>
+                <td className="px-2 py-1">{a.birthdate}</td>
+                <td className="px-2 py-1 text-gray-500">{a.license}</td>
+                <td className="px-2 py-1 flex gap-2">
+                  <Link to={`/athletes/${a.id}/register`}
+                        className="text-blue-600 hover:underline">{t.edit}</Link>
+                  <button onClick={() => deleteAthlete(a.id, `${a.first_name} ${a.last_name}`)}
+                          className="text-red-500 hover:underline">{t.delete}</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

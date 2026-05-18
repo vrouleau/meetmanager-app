@@ -126,7 +126,6 @@ export default function Organizer() {
   const checkedCount = Object.values(checked).filter(Boolean).length
   const closurePassed = meetInfo?.closure_date && new Date() > new Date(meetInfo.closure_date + 'T23:59:59')
 
-  // Mode: invite (before closure), stripe (after + connected), pdf (after + not connected)
   const mode = !closurePassed ? 'invite' : stripeStatus?.connected ? 'stripe' : 'pdf'
 
   function handleMainAction() {
@@ -138,9 +137,9 @@ export default function Organizer() {
   const buttonLabel = mode === 'invite' ? t.send_invitation
     : mode === 'stripe' ? t.send_stripe_invoice_btn
     : t.download_invoices_btn
-  const buttonColor = mode === 'invite' ? 'bg-green-600 hover:bg-green-600/85'
-    : mode === 'stripe' ? 'bg-blue-600 hover:bg-blue-600/85'
-    : 'bg-gray-600 hover:bg-gray-600/85'
+  const buttonColor = mode === 'invite' ? 'bg-green-600 hover:bg-green-700'
+    : mode === 'stripe' ? 'bg-blue-600 hover:bg-blue-700'
+    : 'bg-gray-600 hover:bg-gray-700'
 
   function statusText(c) {
     const parts = []
@@ -152,135 +151,99 @@ export default function Organizer() {
   }
 
   return (
-    <div className="p-4 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4 text-balance">{t.organizer}</h1>
-
-      {/* Meet info */}
-      {meetInfo && (
-        <div className="mb-4 p-3 bg-blue-50 rounded text-sm">
-          <strong>{t.meet}:</strong>{' '}
-          {meetInfo.filename
-            ? <>
-                <strong>{meetInfo.meet_name || meetInfo.filename}</strong>
-                {' '}— {({'LCM':'50m','SCM':'25m'})[meetInfo.course] || meetInfo.course || '?'} — {meetInfo.masters ? 'Masters' : 'No Masters'}
-                {' '}— {meetInfo.events} {t.events}
-                <br/><span className="text-gray-500">({meetInfo.filename}, {t.uploaded} {new Date(meetInfo.uploaded_at + 'Z').toLocaleString()})</span>
-              </>
-            : <span className="text-red-600">{t.no_meet}</span>}
-        </div>
-      )}
-
-      <FeeSummary meetInfo={meetInfo} t={t} lang={lang} />
-
-      {/* Stripe Connect */}
-      <div className="mb-4 p-3 bg-purple-50 rounded text-sm flex items-center gap-3">
-        <span className="font-semibold">{t.stripe_connect}:</span>
-        {stripeStatus?.connected ? (
-          <>
-            <span className="text-green-700 font-medium">✓ {t.stripe_connected}</span>
-            <button onClick={disconnectStripe}
-              className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">
-              {t.stripe_disconnect_btn}
-            </button>
-          </>
-        ) : (
-          <button onClick={connectStripe}
-            className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-600/85 text-sm">
-            {t.stripe_connect_btn}
-          </button>
+    <div className="flex flex-col h-full">
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 px-3 py-2 bg-white border-b border-gray-300 shrink-0 flex-wrap">
+        {/* Meet info compact */}
+        {meetInfo?.filename && (
+          <span className="text-xs text-gray-600">
+            <strong>{meetInfo.meet_name || meetInfo.filename}</strong>
+            {' '}— {({'LCM':'50m','SCM':'25m'})[meetInfo.course] || '?'} — {meetInfo.events} {t.events}
+          </span>
         )}
-      </div>
-
-      {/* Closure date */}
-      <div className="mb-4 p-3 bg-yellow-50 rounded text-sm flex items-center gap-3">
-        <label className="font-semibold whitespace-nowrap">{t.closure_date_label}:</label>
-        <input type="date" className="border p-1 rounded"
-          defaultValue={meetInfo?.closure_date || ''}
-          onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
-          onBlur={async e => {
-            await api.put('/closure-date', { closure_date: e.target.value })
-            loadMeetInfo()
-            setMsg(t.closure_saved)
-          }} />
-        {meetInfo?.closure_date && <span className="text-gray-600">{new Date(meetInfo.closure_date + 'T00:00:00').toLocaleDateString()}</span>}
-      </div>
-
-      {/* Meet upload */}
-      <div className="border p-4 rounded mb-4">
-        <h2 className="font-semibold mb-2">{t.upload_meet}</h2>
-        <p className="text-sm text-gray-600 mb-1 text-pretty">{t.export_meet_smb_desc}</p>
-        <button
-          onClick={() => {
-            fetch('/api/export/meet-smb', { headers: { 'X-Club-Pin': localStorage.getItem('pin') || '' } })
-              .then(r => { if (!r.ok) throw new Error(r.status); return r.blob() })
-              .then(blob => {
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url; a.download = 'meet.smb'; a.click()
-                URL.revokeObjectURL(url)
-              })
-              .catch(e => setMsg(e.message || 'Error'))
-          }}
-          className="bg-gray-600 text-white px-3 py-1.5 rounded hover:bg-gray-600/85 text-sm mb-3"
-        >
-          {t.export_meet_smb}
-        </button>
-        <p className="text-sm text-gray-600 mb-2 text-pretty">{t.upload_meet_desc}</p>
-        <input type="file" accept=".lxf" onChange={uploadMeet} className="file:border file:border-gray-300 file:rounded file:px-3 file:py-1.5 file:text-sm file:bg-white file:cursor-pointer" />
-      </div>
-
-      {/* Export */}
-      <div className="border p-4 rounded mb-4">
-        <h2 className="font-semibold mb-2">{t.export}</h2>
-        <p className="text-sm text-gray-600 mb-2 text-pretty">{t.export_desc}</p>
-        <button onClick={exportLxf}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-600/85">
-          {t.download_lxf}
-        </button>
-      </div>
-
-      {/* Team invite management */}
-      <div className="border p-4 rounded mb-4">
-        <h2 className="font-semibold mb-2">{t.team_invites}</h2>
-
-        <div className="flex gap-2 mb-3">
-          <button onClick={handleMainAction} disabled={!checkedCount}
-            className={`text-white px-4 py-2 rounded disabled:opacity-50 ${buttonColor}`}>
-            {buttonLabel} {checkedCount > 0 && `(${checkedCount})`}
-          </button>
+        {meetInfo && !meetInfo.filename && (
+          <span className="text-xs text-red-500">{t.no_meet}</span>
+        )}
+        <div className="flex-1" />
+        {/* Stripe status */}
+        {stripeStatus?.connected ? (
+          <span className="text-xs text-green-700">✓ Stripe</span>
+        ) : (
+          <button onClick={connectStripe} className="text-xs text-purple-600 hover:underline">{t.stripe_connect_btn}</button>
+        )}
+        {/* Closure date */}
+        <div className="flex items-center gap-1">
+          <label className="text-xs text-gray-500">{t.closure_date_label}:</label>
+          <input type="date" className="border border-gray-300 px-1.5 py-0.5 rounded text-xs"
+            defaultValue={meetInfo?.closure_date || ''}
+            onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
+            onBlur={async e => {
+              await api.put('/closure-date', { closure_date: e.target.value })
+              loadMeetInfo()
+              setMsg(t.closure_saved)
+            }} />
         </div>
+      </div>
 
-        <div className="max-h-64 overflow-y-auto border rounded">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b bg-gray-50">
-              <th className="p-2 w-8">
-                <input type="checkbox"
+      {/* Actions bar */}
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border-b border-gray-200 shrink-0">
+        <button onClick={handleMainAction} disabled={!checkedCount}
+          className={`text-white px-3 py-1 rounded text-xs disabled:opacity-50 ${buttonColor}`}>
+          {buttonLabel} {checkedCount > 0 && `(${checkedCount})`}
+        </button>
+        <div className="w-px h-4 bg-gray-300" />
+        <label className="text-xs text-gray-600 cursor-pointer hover:text-blue-600">
+          {t.upload_meet}
+          <input type="file" accept=".lxf" onChange={uploadMeet} className="hidden" />
+        </label>
+        <div className="w-px h-4 bg-gray-300" />
+        <button onClick={exportLxf} className="text-xs text-blue-600 hover:underline">{t.download_lxf}</button>
+        {stripeStatus?.connected && (
+          <>
+            <div className="w-px h-4 bg-gray-300" />
+            <button onClick={disconnectStripe} className="text-xs text-red-500 hover:underline">{t.stripe_disconnect_btn}</button>
+          </>
+        )}
+        <div className="flex-1" />
+        {msg && <span className="text-xs text-green-700">{msg}</span>}
+      </div>
+
+      {/* Clubs table */}
+      <div className="flex-1 overflow-auto">
+        <table className="w-full text-xs border-collapse">
+          <thead className="sticky top-0 bg-gray-100 z-10">
+            <tr>
+              <th className="px-2 py-1.5 border-b border-gray-300 w-6">
+                <input type="checkbox" className="w-3.5 h-3.5"
                   checked={clubs.length > 0 && clubs.every(c => checked[c.id])}
                   onChange={e => {
                     const val = e.target.checked
                     setChecked(Object.fromEntries(clubs.map(c => [c.id, val])))
                   }} />
               </th>
-              <th className="p-2 text-left">{t.club}</th>
-              <th className="p-2 text-left">Email</th>
-              <th className="p-2 text-left">{t.status}</th>
-            </tr></thead>
-            <tbody>
-              {clubs.map(c => (
-                <tr key={c.id} className="border-b hover:bg-gray-50">
-                  <td className="p-2"><input type="checkbox" checked={!!checked[c.id]}
-                    onChange={e => setChecked(prev => ({...prev, [c.id]: e.target.checked}))} /></td>
-                  <td className="p-2">{c.name}</td>
-                  <td className="p-2 text-gray-600">{c.email || <span className="text-red-400">{lang === 'fr' ? 'aucun' : 'none'}</span>}</td>
-                  <td className="p-2 text-gray-600 text-xs">{statusText(c)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              <th className="px-2 py-1.5 border-b border-gray-300 text-left font-medium">{t.club}</th>
+              <th className="px-2 py-1.5 border-b border-gray-300 text-left font-medium">Email</th>
+              <th className="px-2 py-1.5 border-b border-gray-300 text-left font-medium">{t.status}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {clubs.map(c => (
+              <tr key={c.id} className="border-b border-gray-200 hover:bg-blue-50">
+                <td className="px-2 py-1">
+                  <input type="checkbox" className="w-3.5 h-3.5" checked={!!checked[c.id]}
+                    onChange={e => setChecked(prev => ({...prev, [c.id]: e.target.checked}))} />
+                </td>
+                <td className="px-2 py-1">{c.name}</td>
+                <td className="px-2 py-1 text-gray-500">{c.email || <span className="text-red-400 italic">{lang === 'fr' ? 'aucun' : 'none'}</span>}</td>
+                <td className="px-2 py-1 text-gray-500">{statusText(c)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {msg && <p className="mt-4 text-green-700">{msg}</p>}
+      {/* Fee summary panel */}
+      {meetInfo?.filename && <FeeSummary meetInfo={meetInfo} t={t} lang={lang} />}
     </div>
   )
 }
@@ -298,42 +261,37 @@ function formatMoney(cents, currency, lang) {
 }
 
 function FeeSummary({ meetInfo, t, lang }) {
-  if (!meetInfo) return null
   const currency = meetInfo.currency || 'CAD'
   const meetFees = meetInfo.meet_fees || {}
   const eventFees = (meetInfo.event_fees || []).filter(e => (e.fee_cents || 0) > 0)
   const meetFeeEntries = Object.entries(meetFees)
-  const hasMeet = !!meetInfo.filename
 
   return (
-    <div className="mb-4 border rounded p-3 bg-gray-50">
-      <h2 className="font-semibold mb-2">{t.fee_summary} {currency ? <span className="text-xs text-gray-500">({currency})</span> : null}</h2>
-      <div className="h-56 overflow-y-auto border bg-white rounded p-2 text-sm font-mono whitespace-pre">
-        {!hasMeet ? (
-          <span className="text-gray-500">{t.fee_no_meet}</span>
-        ) : (
-          <>
-            <div className="font-sans font-semibold text-gray-700 mb-1">{t.fee_meet_level}</div>
-            {meetFeeEntries.length === 0 ? (
-              <div className="font-sans text-gray-500 mb-2">{t.fee_none_meet_level}</div>
-            ) : (
-              <div className="mb-2">
-                {meetFeeEntries.map(([type, cents]) => (
-                  <div key={type}>{(t[FEE_TYPE_LABEL[type]] || type).padEnd(22, ' ')}{formatMoney(cents, currency, lang)}</div>
-                ))}
-              </div>
-            )}
-            <div className="font-sans font-semibold text-gray-700 mb-1">{t.fee_per_event}</div>
-            {eventFees.length === 0 ? (
-              <div className="font-sans text-gray-500">{t.fee_none_event}</div>
-            ) : (
-              eventFees.map((e, i) => (
+    <div className="border-t border-gray-300 bg-gray-50 px-3 py-2 shrink-0">
+      <details className="text-xs">
+        <summary className="font-medium text-gray-700 cursor-pointer">{t.fee_summary} ({currency})</summary>
+        <div className="mt-2 max-h-40 overflow-y-auto font-mono text-xs bg-white border border-gray-200 rounded p-2">
+          {meetFeeEntries.length > 0 && (
+            <div className="mb-2">
+              <div className="font-sans font-semibold text-gray-600 mb-0.5">{t.fee_meet_level}</div>
+              {meetFeeEntries.map(([type, cents]) => (
+                <div key={type}>{(t[FEE_TYPE_LABEL[type]] || type).padEnd(22, ' ')}{formatMoney(cents, currency, lang)}</div>
+              ))}
+            </div>
+          )}
+          {eventFees.length > 0 && (
+            <div>
+              <div className="font-sans font-semibold text-gray-600 mb-0.5">{t.fee_per_event}</div>
+              {eventFees.map((e, i) => (
                 <div key={i}>{e.event_number != null ? `#${String(e.event_number).padStart(3,' ')}` : '   '}  {(e.style_name||'').slice(0,40).padEnd(40,' ')}{formatMoney(e.fee_cents, currency, lang)}</div>
-              ))
-            )}
-          </>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+          {meetFeeEntries.length === 0 && eventFees.length === 0 && (
+            <span className="font-sans text-gray-500">{t.fee_none_meet_level}</span>
+          )}
+        </div>
+      </details>
     </div>
   )
 }
